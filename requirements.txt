@@ -1,2 +1,9 @@
 click
+numpy
+pandas
+matplotlib
 python-dotenv>=0.5.1
+scipy
+seaborn
+sklearn
+tables

@@ -3,7 +3,6 @@ import os
 import hashlib
 import logging
 import requests
-from urlparse import urljoin
 from urllib import urlretrieve
 
 import click
@@ -63,8 +62,9 @@ def resolve_doi(doi):
     return response.history[-1].headers['Location']
 
 
-def download_data(logger):
+def download_data():
     """Downloads the data from the hard-coded sources."""
+    logger = logging.getLogger(__name__)
     url_base = resolve_doi(DOI)
     success = True
     for fn in DATA_DOWNLOAD_FILENAMES:
@@ -94,7 +94,7 @@ def main(full_checksum):
     """
     logger = logging.getLogger(__name__)
     logger.info('Downloading the raw data...')
-    success = download_data(logger)
+    success = download_data()
     if success:
         logger.info('Download successful.')
     else:
