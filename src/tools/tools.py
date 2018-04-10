@@ -8,7 +8,6 @@ import warnings
 from collections import defaultdict
 from copy import deepcopy
 from datetime import timedelta
-from itertools import combinations
 
 import numpy as np
 import pandas as pd

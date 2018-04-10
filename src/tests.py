@@ -8,7 +8,6 @@ from copy import deepcopy
 
 from tools import tools
 from in_out import in_out
-from visualization import visualize as vis
 
 MODEL_DIR = os.path.join(tools.PROJECT_DIR, 'models')
 

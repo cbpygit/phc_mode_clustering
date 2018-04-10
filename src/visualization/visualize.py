@@ -8,6 +8,12 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 from copy import deepcopy
+
+# Manage path
+PROJECT_DIR = os.path.normpath(os.path.join(os.path.dirname(__file__),
+                                            os.pardir,
+                                            os.pardir))
+sys.path.insert(0, PROJECT_DIR)
 from src.tools import tools
 
 

@@ -2,6 +2,7 @@
 
 import logging
 import os
+import sys
 from collections import defaultdict
 
 import numpy as np
@@ -10,6 +11,12 @@ import matplotlib.pyplot as plt
 
 from mpl_toolkits.axes_grid1 import ImageGrid
 from sklearn.externals import joblib
+
+# Manage path
+PROJECT_DIR = os.path.normpath(os.path.join(os.path.dirname(__file__),
+                                            os.pardir,
+                                            os.pardir))
+sys.path.insert(0, PROJECT_DIR)
 from src.visualization import visualize as vis
 from src.tools import tools
 
