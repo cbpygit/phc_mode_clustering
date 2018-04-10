@@ -7,6 +7,7 @@ import warnings
 
 from collections import defaultdict
 from copy import deepcopy
+from datetime import timedelta
 from itertools import combinations
 
 import numpy as np
@@ -37,6 +38,11 @@ DATA_FILE_NAMES = dict(results='parameters_and_results.h5',
 MEMORY = joblib.Memory(cachedir=os.path.abspath('cache'), verbose=0)
 
 
+def format_time(t):
+    """Returns a well formatted time string."""
+    return str(timedelta(seconds=t))
+
+
 def get_data_file_path(kind='fields'):
     """ Returns the full path to the data file of `kind`.
 
@@ -46,7 +52,15 @@ def get_data_file_path(kind='fields'):
         Short-hand key for the data file, i.e. 'fields':'field_data.h5' and
         'results':'parameters_and_results.h5'.
     """
-    return os.path.join(RAW_DATA_DIR, DATA_FILE_NAMES[kind])
+    path = os.path.join(RAW_DATA_DIR, DATA_FILE_NAMES[kind])
+    if not os.path.exists(path):
+        raise EnvironmentError('The database file "{}" '.
+                               format(DATA_FILE_NAMES[kind]) +
+                               'is missing in your data/raw folder. You may' +
+                               ' want to run the "src/data/make_dataset.py" ' +
+                               'script to download and verify the necessary' +
+                               ' raw data. Leaving.')
+    return path
 
 
 def get_results(theta_every=1, wvl_every=1):
@@ -254,38 +268,106 @@ def plane_idx_iter(lengths_):
         i += 1
 
 
-def load_efield_data_flat(h5store, sim_numbers, ipol, field_type='electric'):
+def select_from_field_data_store(sim_numbers, ipol, field_type='electric'):
+    """
+    Queries the field HDF5 database and returns the rows that match
+    the given criteria.
+
+    Parameters
+    ----------
+    sim_numbers : list-like
+        List of simulation numbers, i.e. indices of the
+        `parameters_and_results.h5` database.
+    ipol : int
+        Polarization index {0: 'TE', 1: 'TM'}.
+    field_type: {'electric' | 'magnetic'}
+
+    Returns
+    -------
+    df : pandas.DataFrame
+        Multiindexed dataframe with the appropriate rows and flat field values
+        as columns.
+    """
+    logger = logging.getLogger(__name__)
+    logger.info('Collecting field data')
+    logger.debug('Length of `sim_numbers`: {}'.format(len(sim_numbers)))
+
+    # Open the HDF5 store and verify the index
+    h5 = get_data_file_path()
+    h5store = pd.HDFStore(h5)
+
+    # Check proper index to avoid performance issues
+    i = h5store.root.data.table.cols.index.index
+    if i.optlevel != 9 or i.kind != 'full':
+        logger.warn('The HDF5 database for the field data does not seem to' +
+                    'be properly indexed, which may cause critical ' +
+                    'performance issues! Please open the store and run ' +
+                    'create_table_index("data", optlevel=9, kind="full")' +
+                    'to recreate the full index, then retry.')
+
+    # Query the database
     pol = POLS[ipol]
     comp = FIELDS[field_type]
     str_ = 'number in sim_numbers & field=comp & polarization=pol'
-    return h5store.select('data', where=str_).values
-
-
-def test_data_for_sims_(sim_numbers, ipol, field_type='electric'):
-    logger = logging.getLogger(__name__)
-    logger.info('Collecting field data')
-    h5 = get_data_file_path()
-    h5store = pd.HDFStore(h5)
-    data = load_efield_data_flat(h5store, sim_numbers, ipol,
-                                 field_type=field_type)
+    df = h5store.select('data', where=str_)
     h5store.close()
-    return data
+    return df
+
+
+def load_field_data_for_sims_(sim_numbers, ipol, field_type='electric'):
+    """Calls `select_from_field_data_store` but returns the data as
+    numpy.ndarray. See the doc-string of `select_from_field_data_store`
+    for details."""
+    return select_from_field_data_store(sim_numbers, ipol,
+                                        field_type=field_type).values
 
 
 # The cached version of the `test_data_for_sims_` function
-test_data_for_sims = MEMORY.cache(test_data_for_sims_)
+load_field_data_for_sims = MEMORY.cache(load_field_data_for_sims_)
 
 
 def get_clustering_input_data(data, ipol, treat_complex, preprocess,
                               field_type='electric', use_cache=False):
+    """
+    Loads the field data for the given result dataframe `data` and the given
+    field type and polarization and preprocesses the data for clustering.
+
+    Parameters
+    ----------
+    data : pandas.DataFrame
+        Data as queried from the `parameters_and_results.h5` database for which
+        the field data should be loaded.
+    ipol : int
+        Polarization index {0: 'TE', 1: 'TM'}.
+    treat_complex : None or str (numpy function name or 'concat')
+        If None, complex numbers are preserved. If concat, real and imaginary
+        parts are concatenated using `numpy.hstack`. Other str-values are
+        treated as numpy function names, e.g. `'abs'`, which may raise an
+        Exception if numpy does not have this attribute.
+    preprocess : None or str (function name of the sklearn.preprocessing module)
+        Name of a sklearn.preprocessing function to be used to preprocess
+        the data (e.g. `'scale'`).
+    field_type: {'electric' | 'magnetic'}
+    use_cache : bool
+        Whether to use the joblib cache for the `load_field_data_for_sims_`
+        function. This will cause a small overhead on the first call but
+        will give a large speed-up on following calls with the same
+        keyword values.
+
+    Returns
+    -------
+    test_data : numpy.ndarray
+        Preprocessed input matrix to be used in the clustering process.
+    """
+    logger = logging.getLogger(__name__)
     t0 = time.time()
     sim_nums = data.index.tolist()
     if use_cache:
-        test_data = test_data_for_sims(sim_nums, ipol,
-                                       field_type=field_type)
+        test_data = load_field_data_for_sims(sim_nums, ipol,
+                                             field_type=field_type)
     else:
-        test_data = test_data_for_sims_(sim_nums, ipol,
-                                        field_type=field_type)
+        test_data = load_field_data_for_sims_(sim_nums, ipol,
+                                              field_type=field_type)
     if treat_complex is not None:
         if treat_complex == 'concat':
             test_data = np.hstack((test_data.real, test_data.imag))
@@ -294,18 +376,19 @@ def get_clustering_input_data(data, ipol, treat_complex, preprocess,
     if preprocess is not None:
         test_data = getattr(preprocessing, preprocess)(test_data, axis=1)
 
-    print 'Loading time:', time.time() - t0, 'seconds'
+    td = time.time() - t0
+    logger.info('Loading time: {}.'.format(format_time(td)))
     return test_data
 
 
 def get_single_sample(sim_num, ipol, treat_complex='abs', preprocess='scale',
                       field_type='electric', use_cache=False):
     if use_cache:
-        test_data = test_data_for_sims([sim_num], ipol,
-                                       field_type=field_type)
+        test_data = load_field_data_for_sims([sim_num], ipol,
+                                             field_type=field_type)
     else:
-        test_data = test_data_for_sims_([sim_num], ipol,
-                                        field_type=field_type)
+        test_data = load_field_data_for_sims_([sim_num], ipol,
+                                              field_type=field_type)
     if treat_complex is not None:
         if treat_complex == 'concat':
             test_data = np.hstack((test_data.real, test_data.imag))
@@ -317,6 +400,7 @@ def get_single_sample(sim_num, ipol, treat_complex='abs', preprocess='scale',
 
 
 def cluster_fit_data(cluster_type, samples, **cluster_kwargs):
+    logger = logging.getLogger(__name__)
     t0 = time.time()
     if hasattr(cluster, cluster_type):
         family = cluster
@@ -335,8 +419,8 @@ def cluster_fit_data(cluster_type, samples, **cluster_kwargs):
             cluster_kwargs['bandwidth'] = bandwidth
             if 'n_clusters' in cluster_kwargs:
                 del cluster_kwargs['n_clusters']
-                print 'Ignoring `n_clusters` as {} autodetects it.'.format(
-                    cluster_type)
+                logger.debug('Ignoring `n_clusters` as {} autodetects it.'.
+                             format(cluster_type))
 
         model = getattr(family, cluster_type)(**cluster_kwargs)
         model.fit(samples)
@@ -350,7 +434,7 @@ def cluster_fit_data(cluster_type, samples, **cluster_kwargs):
                 [samples[labels == i] for i in range(n_clusters)])
             means_ = np.vstack(
                 clusters.apply(lambda clust: np.mean(clust, axis=0)).tolist())
-            print 'DBSCAN found', n_clusters, 'clusters'
+            logger.info('DBSCAN has found {} clusters'.format(n_clusters))
 
             # Add
             model.n_clusters = n_clusters
@@ -365,11 +449,13 @@ def cluster_fit_data(cluster_type, samples, **cluster_kwargs):
             # Add the probability matrix too the cluster too
             model.cluster_probas_per_sample = model.predict_proba(samples)
 
-        print 'Time for clustering:', time.time() - t0, 'seconds'
+        td = time.time() - t0
+        logger.info('Time for clustering: {}.'.format(format_time(td)))
         return model
 
 
 def get_silhouette(samples, labels):
+    logger = logging.getLogger(__name__)
     try:
         s_samples = silhouette_samples(samples, labels)
         s_avg = np.average(s_samples)
@@ -380,23 +466,26 @@ def get_silhouette(samples, labels):
             s_avg = np.average(s_samples)
             return s_avg, s_samples
         except Exception as e:
-            print e
+            logger.warn('Unable to calculate the silhouette coefficients.' +
+                        'The error was: {}'.format(e))
             return None, None
 
 
 def get_only_sample_data(sim_data, pol='TE', direc='Gamma-K',
                          treat_complex='abs', preprocess='normalize',
                          field_type='electric'):
+    logger = logging.getLogger(__name__)
     # Get polarization and direction data properties
     pol_suf = {'TE': '_1', 'TM': '_2'}[pol]
     ipol = int(pol_suf[1:]) - 1
     phi = {'Gamma-K': 0.0, 'Gamma-M': 90.0}[direc]
 
     # Find the relevant sim-numbers and load test data
-    print 'Reducing data set for pol={} and direction {}'.format(pol, direc)
+    logger.info('Reducing data set for pol={} and direction {}'.
+                format(pol, direc))
     data = sim_data[sim_data.phi == phi]
 
-    print 'Loading sample data'
+    logger.info('Loading sample data')
     return get_clustering_input_data(data, ipol, treat_complex, preprocess,
                                      field_type=field_type)
 
@@ -405,52 +494,54 @@ def cluster_modes(sim_data, pol='TE', direc='Gamma-K',
                   theta_split=None, treat_complex='abs', preprocess='scale',
                   cluster_type='MiniBatchKMeans',
                   field_type='electric', **cluster_kwargs):
+    logger = logging.getLogger(__name__)
     # Get polarization and direction data properties
     pol_suf = {'TE': '_1', 'TM': '_2'}[pol]
     ipol = int(pol_suf[1:]) - 1
     phi = {'Gamma-K': 0.0, 'Gamma-M': 90.0}[direc]
 
     # Find the relevant sim-numbers and load test data
-    print 'Reducing data set for pol={} and direction {}'.format(pol, direc)
+    logger.info('Reducing data set for pol={} and direction {}'.
+                format(pol, direc))
     data = sim_data[sim_data.phi == phi]
 
     # Split data to fit and prediction set if theta_split is given
     if theta_split is not None:
-        print 'Splitting data in test set for theta<=' + \
-              '{0} and prediction set for theta>{0}'.format(theta_split)
+        logger.info('Splitting data in test set for theta<=' +
+                    '{0} and prediction set for theta>{0}'.format(theta_split))
         data_fit = data[data.theta <= theta_split]
         data_predict = data[data.theta > theta_split]
-        print 'Fit data size:', data_fit.shape
-        print 'Prediction data size:', data_predict.shape
+        logger.info('Fit data size: {}'.format(data_fit.shape))
+        logger.info('Prediction data size:', data_predict.shape)
 
         # Load and prepare data for the clustering algorithm
-        print 'Loading sample data for fit'
+        logger.info('Loading sample data for fit')
         samples_fit = get_clustering_input_data(data_fit, ipol, treat_complex,
                                                 preprocess,
                                                 field_type=field_type)
-        print 'Loading sample data for prediction'
+        logger.info('Loading sample data for prediction')
         samples_pred = get_clustering_input_data(data_predict, ipol,
                                                  treat_complex, preprocess,
                                                  field_type=field_type)
     else:
         # Load and prepare data for the clustering algorithm
-        print 'Loading sample data'
+        logger.info('Loading sample data')
         samples_fit = get_clustering_input_data(data, ipol, treat_complex,
                                                 preprocess,
                                                 field_type=field_type)
 
     # Run the clustering algorithm
-    print 'Running', cluster_type + '...'
+    logger.info('Running {} ...'.format(cluster_type))
     model = cluster_fit_data(cluster_type, samples_fit, **cluster_kwargs)
     sim_numbers = data.index.tolist()
     score_fit, silhouettes_fit = get_silhouette(samples_fit, model.labels_)
-    print 'Silhouette score fit:', score_fit
+    logger.info('Silhouette score fit: {}'.format(score_fit))
     if theta_split is not None:
         # Get fitted and predicted labels
         labs_f = model.labels_
         labs_p = model.predict(samples_pred)
         score_pred, silhouettes_pred = get_silhouette(samples_pred, labs_p)
-        print 'Silhouette score predict:', score_pred
+        logger.info('Silhouette score predict: {}'.format(score_pred))
         # Get simulations numbers for each case
         sn_f = data_fit.index.tolist()
         sn_p = data_predict.index.tolist()
@@ -459,7 +550,7 @@ def cluster_modes(sim_data, pol='TE', direc='Gamma-K',
         # Holds Euclidian distances from the assigned cluster centers
         distances = {}
         sil_dict = {}
-        print 'Calculating Euclidian distances'
+        logger.info('Calculating Euclidian distances')
         for irow, (sn_i, l_i, sl_i) in enumerate(
                 zip(sn_f, labs_f, silhouettes_fit)):
             ldict[sn_i] = l_i
@@ -486,7 +577,7 @@ def cluster_modes(sim_data, pol='TE', direc='Gamma-K',
         sn_all = sn_f + sn_p
         labs_all = np.hstack((labs_f, labs_p))
         score_all, sils_all = get_silhouette(samples_all, labs_all)
-        print 'Silhouette score union:', score_all
+        logger.info('Silhouette score union: {}'.format(score_all))
         sils_union = [None] * len(sn_all)
         for i, sn_i in enumerate(sn_all):
             sils_union[sim_numbers.index(sn_i)] = sils_all[i]
@@ -495,7 +586,7 @@ def cluster_modes(sim_data, pol='TE', direc='Gamma-K',
         labels = model.labels_
         silhouettes = silhouettes_fit
         euclidian_distances = []
-        print 'Calculating Euclidian distances'
+        logger.info('Calculating Euclidian distances')
         for irow, l_i in enumerate(labels):
             ccen = model.cluster_centers_[l_i].reshape(1, -1)
             samp = samples_fit[irow].reshape(1, -1)
@@ -506,26 +597,28 @@ def cluster_modes(sim_data, pol='TE', direc='Gamma-K',
 
 def predict_modes(model, sim_data, pol, direc, treat_complex='abs',
                   preprocess='scale', field_type='electric'):
+    logger = logging.getLogger(__name__)
     # Get polarization and direction data properties
     pol_suf = {'TE': '_1', 'TM': '_2'}[pol]
     ipol = int(pol_suf[1:]) - 1
     phi = {'Gamma-K': 0.0, 'Gamma-M': 90.0}[direc]
 
     # Find the relevant sim-numbers and load test data
-    print 'Reducing data set for pol={} and direction {}'.format(pol, direc)
+    logger.info('Reducing data set for pol={} and direction {}'.
+                format(pol, direc))
     data = sim_data[sim_data.phi == phi]
 
-    print 'Loading prediction data'
+    logger.info('Loading prediction data')
     samples_pred = get_clustering_input_data(data, ipol, treat_complex,
                                              preprocess, field_type=field_type)
     sim_numbers = data.index.tolist()
     labels = model.predict(samples_pred)
     score_pred, silhouettes_pred = get_silhouette(samples_pred, labels)
-    print 'Silhouette score predict:', score_pred
+    logger.info('Silhouette score predict: {}'.format(score_pred))
 
     # Euclidian distances from the assigned cluster centers
     euclidian_distances = []
-    print 'Calculating Euclidian distances'
+    logger.info('Calculating Euclidian distances')
     for irow, l_i in enumerate(labels):
         ccen = model.cluster_centers_[l_i].reshape(1, -1)
         samp = samples_pred[irow].reshape(1, -1)
@@ -537,6 +630,7 @@ def predict_modes(model, sim_data, pol, direc, treat_complex='abs',
 def cluster_all_modes(sim_data_, theta_split=None,
                       cluster_type='MiniBatchKMeans', cluster_kwargs_dicts=None,
                       pols=None, direcs=None, field_type='electric'):
+    logger = logging.getLogger(__name__)
     # Copy input data
     sim_data = deepcopy(sim_data_)
 
@@ -553,7 +647,7 @@ def cluster_all_modes(sim_data_, theta_split=None,
 
     for direc in direcs:
         for pol in pols:
-            print '\nClustering for', direc, pol
+            logger.info('Clustering for {} {}'.format(direc, pol))
             model_data[direc][pol] = {}
             pol_suf = pdict[pol]
             if cluster_kwargs_dicts is None:
@@ -575,8 +669,8 @@ def cluster_all_modes(sim_data_, theta_split=None,
                 _silhouettes = []
                 kwa = deepcopy(cluster_kwargs)
                 if len(n_cluster_list) > 1:
-                    print
-                    print 'Searching optimum in n_cluster list', n_cluster_list
+                    logger.info('Searching optimum in n_cluster list {}'.
+                                format(n_cluster_list))
                 for n_clusters in n_cluster_list:
                     kwa['n_clusters'] = n_clusters
                     model, sim_nums, labels, distances, silhouettes = \
@@ -602,10 +696,9 @@ def cluster_all_modes(sim_data_, theta_split=None,
                     _sil_avgs = [np.average(_sil) for _sil in _silhouettes]
                 _opt_ind = _sil_avgs.index(max(_sil_avgs))
                 if len(n_cluster_list) > 1:
-                    print 'Found optimum for n_clusters =', n_cluster_list[
-                        _opt_ind], \
-                        'with score =', _sil_avgs[_opt_ind]
-                    print
+                    logger.info('Found optimum for n_clusters = {}'.
+                                format(n_cluster_list[_opt_ind],) +
+                                'with score = {}'.format(_sil_avgs[_opt_ind]))
                 model = _models[_opt_ind]
                 sim_nums = _sim_numss[_opt_ind]
                 labels = _labelss[_opt_ind]
@@ -625,7 +718,7 @@ def cluster_all_modes(sim_data_, theta_split=None,
             model_data[direc][pol]['sim_nums'] = sim_nums
 
             # Write labels, distances and silhouettes to the data frame
-            print 'Updating simulation data set.'
+            logger.info('Updating simulation data set.')
 
             if isinstance(silhouettes, dict):
                 _cols = ['Classification' + pol_suf,
@@ -671,14 +764,14 @@ def cluster_all_modes(sim_data_, theta_split=None,
                     _ser = sim_data.loc[_snums, _col_own]
                     sim_data.loc[_snums, _col] = _ser.values
 
-            print 'Finished'
-
+            logger.info('Finished')
     return sim_data, dict(model_data)
 
 
 def classify_with_model(sim_data_, model, pols=None, direcs=None,
                         treat_complex=None, preprocess='scale',
                         field_type='electric'):
+    logger = logging.getLogger(__name__)
     # Copy input data
     sim_data = deepcopy(sim_data_)
 
@@ -695,7 +788,7 @@ def classify_with_model(sim_data_, model, pols=None, direcs=None,
 
     for direc in direcs:
         for pol in pols:
-            print '\nClassifying for', direc, pol
+            logger.info('Classifying for {} {}'.format(direc, pol))
             sim_num_data[direc][pol] = {}
             pol_suf = pdict[pol]
 
@@ -706,7 +799,7 @@ def classify_with_model(sim_data_, model, pols=None, direcs=None,
             sim_num_data[direc][pol]['sim_nums'] = sim_nums
 
             # Write labels, distances and silhouettes to the data frame
-            print 'Updating simulation data set.'
+            logger.info('Updating simulation data set.')
             _cols = ['Classification' + pol_suf,
                      'Euclidian_Distances' + pol_suf,
                      'Silhouettes' + pol_suf]
@@ -714,15 +807,17 @@ def classify_with_model(sim_data_, model, pols=None, direcs=None,
                 if _col not in sim_data:
                     sim_data[_col] = np.NaN
                 sim_data.loc[sim_nums, _col] = _cdata
-            print 'Finished'
+                logger.info('Finished')
 
     return sim_data, dict(sim_num_data)
 
 
 def mini_test(every):
-    print 'Loading simulation data, using every', every, 'angles and wavelength.'
+    logger = logging.getLogger(__name__)
+    logger.info('Loading simulation data, using every {}'.format(every) +
+                ' angles and wavelength.')
     sim_data_init = get_results(every, every)
-    print 'Total number of rows is', len(sim_data_init)
+    logger.info('Total number of rows is {}'.format(len(sim_data_init)))
 
     # Define init parameters
     ddict = DEFAULT_SIM_DDICT
@@ -767,11 +862,11 @@ def test():
     logger = logging.getLogger(__name__)
     df = get_results(4, 4)
     lengths, pointlist, domain_ids = get_metadata()
-    data = test_data_for_sims_([0, 1, 2, 3], 0, 'electric')
-    print data
+    data = load_field_data_for_sims_([0, 1, 2, 3], 0, 'electric')
+    logger.info(data)
 
 
 if __name__ == '__main__':
     log_fmt = '%(asctime)s - %(levelname)s - %(message)s'
-    logging.basicConfig(level=logging.INFO, format=log_fmt)
+    logging.basicConfig(level=logging.DEBUG, format=log_fmt)
     mini_test(20)
