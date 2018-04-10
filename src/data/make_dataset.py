@@ -85,9 +85,9 @@ def download_data():
 
 
 @click.command()
-@click.option('--full_checksum', default=True, type=click.BOOL,
+@click.option('--full_checksum', default=False, type=click.BOOL,
               help='Use full SHA256 checksums instead of reduced ones.')
-@click.option('--print_checksums', default=True, type=click.BOOL,
+@click.option('--print_checksums', default=False, type=click.BOOL,
               help='Print-out the actual checksums instead of checking.')
 def main(full_checksum, print_checksums):
     """Downloads and verifies the raw data needed for the processing scripts
