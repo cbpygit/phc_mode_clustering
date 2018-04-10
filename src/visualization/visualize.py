@@ -1,12 +1,14 @@
 # coding: utf-8
 
+import os
+import sys
+
 import matplotlib.pyplot as plt
-from mpl_toolkits.axes_grid1 import ImageGrid
 import numpy as np
 import pandas as pd
 import seaborn as sns
-from collections import defaultdict
 from copy import deepcopy
+from src.tools import tools
 
 
 CUSTOM_COLORS = [(0.8901960784313725, 0.03529411764705882, 0.09411764705882353),
@@ -337,3 +339,148 @@ def compare_values_and_classification(data_, cq_quant, pol_suf, fig=None,
             return (im1, im2, im_dummy), bnds, sil_range, ax1, ax2
         else:
             return (im1, im2, im_dummy), bnds, sil_range
+
+
+class DataOnPlane(object):
+
+    def __init__(self, field, points, ids, name='E'):
+        self.field = field
+        self.fx = field[..., 0]
+        self.fy = field[..., 1]
+        self.fz = field[..., 2]
+        self.fnorm = np.linalg.norm(field, axis=-1)
+        self.fenergy = np.square(self.fnorm)
+
+        self.points = points
+        self.x = points[..., 0]
+        self.y = points[..., 1]
+        self.z = points[..., 2]
+        if len(np.unique(self.z)) == 1:
+            self.orientation = 'horizontal'
+        else:
+            self.orientation = 'vertical'
+
+        self.ids = ids
+        self.name = name
+
+    def get_image_xy(self):
+        if self.orientation == 'horizontal':
+            return self.x, self.y
+
+        # vertical case
+        assert len(np.unique(self.z)) > 1
+
+        if len(np.unique(self.x)) == 1:
+            # yz-plane
+            return self.y, self.z
+        elif len(np.unique(self.y)) == 1:
+            # xz-plane
+            return self.x, self.z
+
+        # itermediate plane
+        x = np.sqrt(np.square(self.x) + np.square(self.y))
+        x[self.x < 0.] *= -1.
+        return x, self.z
+
+    def get_image_extent(self, component, return_no_cd_image=False):
+        x, y = self.get_image_xy()
+        xu = np.unique(x)
+        yu = np.unique(y)
+        nx, ny = (len(xu), len(yu))
+
+        # Mesh
+        xv, yv = np.meshgrid(xu, yu)
+        field = getattr(self, 'f' + component)
+        image = pd.DataFrame(index=xu, columns=yu, dtype='float')
+        for i, this_x in enumerate(x):
+            this_y = y[i]
+            iv, jv = np.where(np.logical_and(xv == this_x, yv == this_y))
+            assert len(iv) == 1 and len(jv) == 1
+            iv, jv = (iv[0], jv[0])
+            image.iloc[jv, iv] = field[i]
+
+        # Extent
+        if self.orientation == 'horizontal':
+            extent = (yu.min(), yu.max(), xu.min(), xu.max())
+            im_ret = image.values.T
+        else:
+            extent = (xu.min(), xu.max(), yu.min(), yu.max())
+            im_ret = image.values
+
+        if not return_no_cd_image:
+            return im_ret, extent
+
+        # Image of arreas without CD
+        #        image = image.values.T
+        nocd = np.isnan(im_ret)
+        nocd_im = np.ones_like(nocd).astype('float')
+        nocd_im[np.logical_not(nocd == True)] = 0.  # None#np.nan
+        return im_ret, extent, nocd_im
+
+    def get_discrete_cmap(self, color='black', val_with_color=1.):
+        from matplotlib.colors import colorConverter
+        import matplotlib as mpl
+
+        # generate the colors for your colormap
+        color1 = (1., 1., 1., 0.)  # colorConverter.to_rgba('white')
+        color2 = colorConverter.to_rgba(color)
+
+        # make the colormaps
+        cmap = mpl.colors.LinearSegmentedColormap.from_list('my_cmap',
+                                                            [color1, color2],
+                                                            2)
+
+        cmap._init()  # create the _lut array, with rgba values
+
+        # create your alpha array and fill the colormap with them.
+        # here it is progressive, but you can create whathever you want
+        #         alphas = np.zeros((cmap.N+3))# np.linspace(0., 1., cmap.N+3)
+        #        alphas[-1] = 1.
+        #         cmap._lut[:,-1] = alphas
+        return cmap
+
+    def imshow(self, component, ax=None, mark_nocd=None, **imshow_kwargs):
+        image, extent, nocd = self.get_image_extent(component, True)
+
+        # Default kwargs
+        cmap = 'viridis' if component in ['norm', 'energy'] else 'inferno'
+        dforigin = 'upper' if self.orientation == 'horizontal' else 'lower'
+        kwdefaults = dict(origin=dforigin, aspect='equal',
+                          interpolation='none', cmap=cmap)
+        for dkey, dval in kwdefaults.iteritems():
+            if not dkey in imshow_kwargs:
+                imshow_kwargs[dkey] = dval
+
+        if ax is None:
+            ax = plt.gca()
+        im = ax.imshow(image.T, extent=extent, **imshow_kwargs)
+
+        if mark_nocd is None:
+            return ax, im
+
+        cmap = self.get_discrete_cmap(mark_nocd)
+        #         print cmap, cmap.N
+        #         print nocd
+        ax.imshow(nocd, interpolation=imshow_kwargs['interpolation'],
+                  origin=imshow_kwargs['origin'], cmap=cmap, vmin=0.,
+                  vmax=1.)  # , norm=norm)
+        return ax, im
+
+
+class DataOnPlanes(object):
+
+    def __init__(self, fields, pointlist, lengths, domain_ids, name='E'):
+        self.pointlist = pointlist
+        self.fields = fields.reshape(pointlist.shape)
+        self.lengths = lengths
+        self.domain_ids = domain_ids
+        self.name = name
+        self.assign_and_reshape()
+
+    def assign_and_reshape(self):
+        self.planes = []
+        for _, idx_i, idx_f in tools.plane_idx_iter(self.lengths):
+            points = self.pointlist[idx_i:idx_f]
+            field = self.fields[idx_i:idx_f]
+            ids = self.domain_ids[idx_i:idx_f]
+            self.planes.append(DataOnPlane(field, points, ids, self.name))
