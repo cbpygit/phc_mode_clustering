@@ -15,14 +15,15 @@ import pandas as pd
 from scipy.linalg import expm, norm
 from sklearn import cluster, mixture, preprocessing
 from sklearn.metrics import silhouette_samples, silhouette_score
-from sklearn.metrics.pairwise import euclidean_distances, distance_metrics, pairwise_distances
+from sklearn.metrics.pairwise import euclidean_distances, distance_metrics, \
+    pairwise_distances
 from sklearn.externals import joblib
 from sklearn.utils import check_random_state
 from sklearn.externals.joblib import Parallel, delayed
 
 # Global constants
-DEFAULT_SIM_DDICT = {'Gamma-K':0., 'Gamma-M':90.}
-DEFAULT_SIM_PDICT = {'TM':'_2', 'TE':'_1'}
+DEFAULT_SIM_DDICT = {'Gamma-K': 0., 'Gamma-M': 90.}
+DEFAULT_SIM_PDICT = {'TM': '_2', 'TE': '_1'}
 POLS = ['TE', 'TM']
 FIELDS = dict(electric='E_abs', magnetic='H_abs')
 
@@ -103,7 +104,7 @@ def get_metadata():
     df_points = pd.read_hdf(h5, 'points')
     df_lengths = pd.read_hdf(h5, 'lengths')
     return (df_lengths['length'].values,
-            df_points.loc[:,('x', 'y', 'z')].values,
+            df_points.loc[:, ('x', 'y', 'z')].values,
             df_points['domain_ids'].values)
 
 
@@ -111,8 +112,8 @@ def refracted_angles(angles, refractive_index, reverse=False):
     """Returns angles after refraction on an air-medium interface, where the
     medium has a refractive index of `refractive_index`."""
     if reverse:
-        refractive_index = 1./refractive_index
-    return np.rad2deg(np.arcsin(np.sin(np.deg2rad(angles))/refractive_index))
+        refractive_index = 1. / refractive_index
+    return np.rad2deg(np.arcsin(np.sin(np.deg2rad(angles)) / refractive_index))
 
 
 def fix_angle_in_scattering_dset(dset, angle_col_name='theta'):
@@ -121,7 +122,7 @@ def fix_angle_in_scattering_dset(dset, angle_col_name='theta'):
     d_ = dset.copy(deep=True)
     n_ = d_.mat_sup_n.unique()[0]
     d_.loc[:, angle_col_name] = refracted_angles(d_[angle_col_name], n_,
-                                                reverse=True)
+                                                 reverse=True)
     return d_.dropna(subset=[angle_col_name])
 
 
@@ -132,8 +133,8 @@ def rot_mat(axis, theta):
 
 def rotate_vector(v, axis, theta):
     """Rotates a vector `v` by angle `theta` around `axis`."""
-    M = rot_mat(axis, theta)
-    return np.tensordot(M, v, axes=([0], [1])).T  # np.dot(M, v)
+    matrix = rot_mat(axis, theta)
+    return np.tensordot(matrix, v, axes=([0], [1])).T  # np.dot(M, v)
 
 
 def rotate_around_z(v, theta):
@@ -169,16 +170,19 @@ def get_hex_plane(plane_idx, inradius, z_height, z_center, np_xy,
     if np_z == 'auto':
         np_z = int(np.round(float(np_xy) / 2. / rc * z_height))
 
-    # XY-plane (no hexagonal shape!)
+    # x_y-plane (no hexagonal shape!)
     if plane_idx == 6:
-        X = np.linspace(-ri + p_eps, ri - p_eps, np_xy)
-        Y = np.linspace(-rc + p_eps, rc - p_eps, np_xy)
-        XY = np.meshgrid(X, Y)
-        XYrs = np.concatenate((XY[0][..., np.newaxis],
-                               XY[1][..., np.newaxis]),
-                              axis=2)
-        Z = np.ones((np_xy, np_xy, 1)) * z_center
-        pl = np.concatenate((XYrs, Z), axis=2)
+        x = np.linspace(-ri + p_eps, ri - p_eps, np_xy)
+        y = np.linspace(-rc + p_eps, rc - p_eps, np_xy)
+        x_y = np.meshgrid(x, y)
+        # x_y_rs = np.concatenate((x_y[0][..., np.newaxis],
+        #                          x_y[1][..., np.newaxis]),
+        #                         axis=2)
+        x_y_rs = np.concatenate((np.expand_dims(x_y[0], axis=-1),
+                                 np.expand_dims(x_y[1], axis=-1)),
+                                axis=2)
+        z = np.ones((np_xy, np_xy, 1)) * z_center
+        pl = np.concatenate((x_y_rs, z), axis=2)
         pl = pl.reshape(-1, pl.shape[-1])
 
         # Restrict to hexagon
@@ -209,8 +213,10 @@ def get_hex_plane(plane_idx, inradius, z_height, z_center, np_xy,
 
 
 def get_hex_planes_point_list(inradius, z_height, z_center, np_xy, np_z,
-                              plane_indices=[0, 1, 2, 3, 6]):
+                              plane_indices=None):
     # Construct the desired planes
+    if plane_indices is None:
+        plane_indices = [0, 1, 2, 3, 6]
     planes = []
     for i in plane_indices:
         planes.append(get_hex_plane(i, inradius, z_height, z_center,
@@ -221,16 +227,21 @@ def get_hex_planes_point_list(inradius, z_height, z_center, np_xy, np_z,
     return np.vstack(planes), np.array(lengths)
 
 
-def hex_planes_point_list_for_keys(keys, plane_indices=[0, 1, 2, 3, 6]):
-    if not 'uol' in keys:
+def hex_planes_point_list_for_keys(keys, plane_indices=None):
+    if plane_indices is None:
+        plane_indices = [0, 1, 2, 3, 6]
+    if 'uol' not in keys:
         keys['uol'] = 1.e-9
     inradius = keys['p'] * keys['uol'] / 2.
     z_height = (keys['h'] + keys['h_sub'] + keys['h_sup']) * keys['uol']
     z_center = (keys['h_sub'] + keys['h'] / 2.) * keys['uol']
     np_xy = keys['hex_np_xy']
-    if not 'hex_np_z' in keys:
+    if 'hex_np_z' in keys:
+        np_z = keys['hex_np_z']
+    else:
         np_z = 'auto'
-    return get_hex_planes_point_list(inradius, z_height, z_center, np_xy, np_z)
+    return get_hex_planes_point_list(inradius, z_height, z_center, np_xy, np_z,
+                                     plane_indices=plane_indices)
 
 
 def plane_idx_iter(lengths_):
@@ -267,43 +278,35 @@ def test_data_for_sims_(sim_numbers, ipol, field_type='electric'):
 test_data_for_sims = MEMORY.cache(test_data_for_sims_)
 
 
-def get_clustering_input_data(h5store, data, ipol,
-                              treat_complex, preprocess,
-                              field_type='electric', use_cache=True):
+def get_clustering_input_data(data, ipol, treat_complex, preprocess,
+                              field_type='electric', use_cache=False):
     t0 = time.time()
     sim_nums = data.index.tolist()
-    h5store = handle_h5_storage_kinds(h5store)
     if use_cache:
-        test_data = test_data_for_sims(h5store, sim_nums, ipol,
+        test_data = test_data_for_sims(sim_nums, ipol,
                                        field_type=field_type)
     else:
-        test_data = test_data_for_sims_(h5store, sim_nums, ipol,
+        test_data = test_data_for_sims_(sim_nums, ipol,
                                         field_type=field_type)
     if treat_complex is not None:
         if treat_complex == 'concat':
             test_data = np.hstack((test_data.real, test_data.imag))
-        #            print 'Concatenated real and imaginary parts of test data.'
         else:
-            #            print 'Applying `np.{}` to data.'.format(treat_complex)
             test_data = getattr(np, treat_complex)(test_data)
-    #    print 'test_data size:', test_data.shape
     if preprocess is not None:
-        #        print 'Preprocessing data using `preprocessing.{}`.'.format(preprocess)
         test_data = getattr(preprocessing, preprocess)(test_data, axis=1)
 
     print 'Loading time:', time.time() - t0, 'seconds'
     return test_data
 
 
-def get_single_sample(h5store, sim_num, ipol,
-                      treat_complex='abs', preprocess='scale',
+def get_single_sample(sim_num, ipol, treat_complex='abs', preprocess='scale',
                       field_type='electric', use_cache=False):
-    h5store = handle_h5_storage_kinds(h5store)
     if use_cache:
-        test_data = test_data_for_sims(h5store, [sim_num], ipol,
+        test_data = test_data_for_sims([sim_num], ipol,
                                        field_type=field_type)
     else:
-        test_data = test_data_for_sims_(h5store, [sim_num], ipol,
+        test_data = test_data_for_sims_([sim_num], ipol,
                                         field_type=field_type)
     if treat_complex is not None:
         if treat_complex == 'concat':
@@ -322,9 +325,8 @@ def cluster_fit_data(cluster_type, samples, **cluster_kwargs):
     elif hasattr(mixture, cluster_type):
         family = mixture
     else:
-        raise ValueError('Cannot find cluster_type {}'.format(cluster_type) + \
+        raise ValueError('Cannot find cluster_type {}'.format(cluster_type) +
                          ' in cluster or mixture modules.')
-        return
 
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
@@ -384,7 +386,7 @@ def get_silhouette(samples, labels):
             return None, None
 
 
-def get_only_sample_data(sim_data, h5store, pol='TE', direc='Gamma-K',
+def get_only_sample_data(sim_data, pol='TE', direc='Gamma-K',
                          treat_complex='abs', preprocess='normalize',
                          field_type='electric'):
     # Get polarization and direction data properties
@@ -397,13 +399,11 @@ def get_only_sample_data(sim_data, h5store, pol='TE', direc='Gamma-K',
     data = sim_data[sim_data.phi == phi]
 
     print 'Loading sample data'
-    return get_clustering_input_data(h5store, data, ipol,
-                                     treat_complex,
-                                     preprocess,
+    return get_clustering_input_data(data, ipol, treat_complex, preprocess,
                                      field_type=field_type)
 
 
-def cluster_modes(sim_data, h5store, pol='TE', direc='Gamma-K',
+def cluster_modes(sim_data, pol='TE', direc='Gamma-K',
                   theta_split=None, treat_complex='abs', preprocess='scale',
                   cluster_type='MiniBatchKMeans',
                   field_type='electric', **cluster_kwargs):
@@ -427,19 +427,17 @@ def cluster_modes(sim_data, h5store, pol='TE', direc='Gamma-K',
 
         # Load and prepare data for the clustering algorithm
         print 'Loading sample data for fit'
-        samples_fit = get_clustering_input_data(h5store, data_fit, ipol,
-                                                treat_complex,
+        samples_fit = get_clustering_input_data(data_fit, ipol, treat_complex,
                                                 preprocess,
                                                 field_type=field_type)
         print 'Loading sample data for prediction'
-        samples_pred = get_clustering_input_data(h5store, data_predict, ipol,
+        samples_pred = get_clustering_input_data(data_predict, ipol,
                                                  treat_complex, preprocess,
                                                  field_type=field_type)
     else:
         # Load and prepare data for the clustering algorithm
         print 'Loading sample data'
-        samples_fit = get_clustering_input_data(h5store, data, ipol,
-                                                treat_complex,
+        samples_fit = get_clustering_input_data(data, ipol, treat_complex,
                                                 preprocess,
                                                 field_type=field_type)
 
@@ -460,7 +458,8 @@ def cluster_modes(sim_data, h5store, pol='TE', direc='Gamma-K',
         sn_p = data_predict.index.tolist()
         # Build dictionary mapping simulation number to label
         ldict = {}
-        distances = {}  # holds Euclidian distances from the assigned cluster centers
+        # Holds Euclidian distances from the assigned cluster centers
+        distances = {}
         sil_dict = {}
         print 'Calculating Euclidian distances'
         for irow, (sn_i, l_i, sl_i) in enumerate(
@@ -472,7 +471,7 @@ def cluster_modes(sim_data, h5store, pol='TE', direc='Gamma-K',
             distances[sn_i] = euclidean_distances(ccen, samp)[0][0]
         for irow, (sn_i, l_i, sl_i) in enumerate(
                 zip(sn_p, labs_p, silhouettes_pred)):
-            assert not sn_i in ldict
+            assert sn_i not in ldict
             ldict[sn_i] = l_i
             sil_dict[sn_i] = sl_i
             ccen = model.cluster_centers_[l_i].reshape(1, -1)
@@ -507,7 +506,7 @@ def cluster_modes(sim_data, h5store, pol='TE', direc='Gamma-K',
     return model, sim_numbers, labels, euclidian_distances, silhouettes
 
 
-def predict_modes(model, h5store, sim_data, pol, direc, treat_complex='abs',
+def predict_modes(model, sim_data, pol, direc, treat_complex='abs',
                   preprocess='scale', field_type='electric'):
     # Get polarization and direction data properties
     pol_suf = {'TE': '_1', 'TM': '_2'}[pol]
@@ -519,10 +518,8 @@ def predict_modes(model, h5store, sim_data, pol, direc, treat_complex='abs',
     data = sim_data[sim_data.phi == phi]
 
     print 'Loading prediction data'
-    samples_pred = get_clustering_input_data(h5store, data, ipol,
-                                             treat_complex,
-                                             preprocess,
-                                             field_type=field_type)
+    samples_pred = get_clustering_input_data(data, ipol, treat_complex,
+                                             preprocess, field_type=field_type)
     sim_numbers = data.index.tolist()
     labels = model.predict(samples_pred)
     score_pred, silhouettes_pred = get_silhouette(samples_pred, labels)
@@ -539,10 +536,9 @@ def predict_modes(model, h5store, sim_data, pol, direc, treat_complex='abs',
     return sim_numbers, labels, euclidian_distances, silhouettes_pred
 
 
-def cluster_all_modes(h5store, sim_data_, theta_split=None,
-                      cluster_type='MiniBatchKMeans',
-                      cluster_kwargs_dicts=None, pols=None,
-                      direcs=None, field_type='electric'):
+def cluster_all_modes(sim_data_, theta_split=None,
+                      cluster_type='MiniBatchKMeans', cluster_kwargs_dicts=None,
+                      pols=None, direcs=None, field_type='electric'):
     # Copy input data
     sim_data = deepcopy(sim_data_)
 
@@ -572,7 +568,8 @@ def cluster_all_modes(h5store, sim_data_, theta_split=None,
                     n_cluster_list = cluster_kwargs['n_clusters']
                 else:
                     n_cluster_list = [cluster_kwargs['n_clusters']]
-                # Find optimum for the given n_clusters list based on silhouette score
+                # Find optimum for the given n_clusters list based on
+                # silhouette score
                 _models = []
                 _sim_numss = []
                 _labelss = []
@@ -586,7 +583,6 @@ def cluster_all_modes(h5store, sim_data_, theta_split=None,
                     kwa['n_clusters'] = n_clusters
                     model, sim_nums, labels, distances, silhouettes = \
                         cluster_modes(sim_data,
-                                      h5store,
                                       pol=pol,
                                       direc=direc,
                                       theta_split=theta_split,
@@ -620,7 +616,6 @@ def cluster_all_modes(h5store, sim_data_, theta_split=None,
             else:
                 model, sim_nums, labels, distances, silhouettes = \
                     cluster_modes(sim_data,
-                                  h5store,
                                   pol=pol,
                                   direc=direc,
                                   theta_split=theta_split,
@@ -644,7 +639,7 @@ def cluster_all_modes(h5store, sim_data_, theta_split=None,
                                                     'silhouettes_union'],
                                                 silhouettes[
                                                     'silhouettes_partial']]):
-                    if not _col in sim_data:
+                    if _col not in sim_data:
                         sim_data[_col] = np.NaN
                     sim_data.loc[sim_nums, _col] = _cdata
             else:
@@ -653,7 +648,7 @@ def cluster_all_modes(h5store, sim_data_, theta_split=None,
                          'Silhouettes' + pol_suf]
                 for _col, _cdata in zip(_cols,
                                         [labels, distances, silhouettes]):
-                    if not _col in sim_data:
+                    if _col not in sim_data:
                         sim_data[_col] = np.NaN
                     sim_data.loc[sim_nums, _col] = _cdata
 
@@ -662,14 +657,14 @@ def cluster_all_modes(h5store, sim_data_, theta_split=None,
             if hasattr(model, 'cluster_probas_per_sample'):
                 for ic in range(model.n_clusters):
                     _col = 'Probability_pol{}_label_{}'.format(pol_suf, ic)
-                    if not _col in sim_data:
+                    if _col not in sim_data:
                         sim_data[_col] = np.NaN
                     sim_data.loc[
                         sim_nums, _col] = model.cluster_probas_per_sample[:, ic]
 
                 # Single column for the probability to be in its own cluster
                 _col = 'Probability' + pol_suf
-                if not _col in sim_data:
+                if _col not in sim_data:
                     sim_data[_col] = np.NaN
                 for ic in range(model.n_clusters):
                     _idx = sim_data['Classification' + pol_suf] == ic
@@ -683,7 +678,7 @@ def cluster_all_modes(h5store, sim_data_, theta_split=None,
     return sim_data, dict(model_data)
 
 
-def classify_with_model(sim_data_, h5store, model, pols=None, direcs=None,
+def classify_with_model(sim_data_, model, pols=None, direcs=None,
                         treat_complex=None, preprocess='scale',
                         field_type='electric'):
     # Copy input data
@@ -707,12 +702,9 @@ def classify_with_model(sim_data_, h5store, model, pols=None, direcs=None,
             pol_suf = pdict[pol]
 
             sim_nums, labels, distances, silhouettes = \
-                predict_modes(model, h5store,
-                              sim_data,
-                              pol, direc,
+                predict_modes(model, sim_data, pol, direc,
                               treat_complex=treat_complex,
-                              preprocess=preprocess,
-                              field_type=field_type)
+                              preprocess=preprocess, field_type=field_type)
             sim_num_data[direc][pol]['sim_nums'] = sim_nums
 
             # Write labels, distances and silhouettes to the data frame
@@ -721,7 +713,7 @@ def classify_with_model(sim_data_, h5store, model, pols=None, direcs=None,
                      'Euclidian_Distances' + pol_suf,
                      'Silhouettes' + pol_suf]
             for _col, _cdata in zip(_cols, [labels, distances, silhouettes]):
-                if not _col in sim_data:
+                if _col not in sim_data:
                     sim_data[_col] = np.NaN
                 sim_data.loc[sim_nums, _col] = _cdata
             print 'Finished'
@@ -729,15 +721,257 @@ def classify_with_model(sim_data_, h5store, model, pols=None, direcs=None,
     return sim_data, dict(sim_num_data)
 
 
+def silhouette_score_block(X, labels, metric='euclidean', sample_size=None,
+                           random_state=None, n_jobs=1, **kwds):
+    """Compute the mean Silhouette Coefficient of all samples.
+    The Silhouette Coefficient is calculated using the mean intra-cluster
+    distance (a) and the mean nearest-cluster distance (b) for each sample.
+    The Silhouette Coefficient for a sample is ``(b - a) / max(a, b)``.
+    To clarrify, b is the distance between a sample and the nearest cluster
+    that b is not a part of.
+    This function returns the mean Silhoeutte Coefficient over all samples.
+    To obtain the values for each sample, use silhouette_samples
+    The best value is 1 and the worst value is -1. Values near 0 indicate
+    overlapping clusters. Negative values generally indicate that a sample has
+    been assigned to the wrong cluster, as a different cluster is more similar.
+    Parameters
+    ----------
+    X : array [n_samples_a, n_features]
+        Feature array.
+    labels : array, shape = [n_samples]
+             label values for each sample
+    metric : string, or callable
+        The metric to use when calculating distance between instances in a
+        feature array. If metric is a string, it must be one of the options
+        allowed by metrics.pairwise.pairwise_distances. If X is the distance
+        array itself, use "precomputed" as the metric.
+    sample_size : int or None
+        The size of the sample to use when computing the Silhouette
+        Coefficient. If sample_size is None, no sampling is used.
+    random_state : integer or numpy.RandomState, optional
+        The generator used to initialize the centers. If an integer is
+        given, it fixes the seed. Defaults to the global numpy random
+        number generator.
+    `**kwds` : optional keyword parameters
+        Any further parameters are passed directly to the distance function.
+        If using a scipy.spatial.distance metric, the parameters are still
+        metric dependent. See the scipy docs for usage examples.
+    Returns
+    -------
+    silhouette : float
+        Mean Silhouette Coefficient for all samples.
+    References
+    ----------
+    Peter J. Rousseeuw (1987). "Silhouettes: a Graphical Aid to the
+        Interpretation and Validation of Cluster Analysis". Computational
+        and Applied Mathematics 20: 53-65. doi:10.1016/0377-0427(87)90125-7.
+    http://en.wikipedia.org/wiki/Silhouette_(clustering)
+    """
+    if sample_size is not None:
+        random_state = check_random_state(random_state)
+        indices = random_state.permutation(X.shape[0])[:sample_size]
+        if metric == "precomputed":
+            raise ValueError('Distance matrix cannot be precomputed')
+        else:
+            X, labels = X[indices], labels[indices]
+    return np.mean(silhouette_samples_block(
+        X, labels, metric=metric, n_jobs=n_jobs, **kwds))
+
+
+def silhouette_samples_block(X, labels, metric='euclidean', n_jobs=1, **kwds):
+    """Compute the Silhouette Coefficient for each sample.
+    The Silhoeutte Coefficient is a measure of how well samples are clustered
+    with samples that are similar to themselves. Clustering models with a high
+    Silhouette Coefficient are said to be dense, where samples in the same
+    cluster are similar to each other, and well separated, where samples in
+    different clusters are not very similar to each other.
+    The Silhouette Coefficient is calculated using the mean intra-cluster
+    distance (a) and the mean nearest-cluster distance (b) for each sample.
+    The Silhouette Coefficient for a sample is ``(b - a) / max(a, b)``.
+    This function returns the Silhoeutte Coefficient for each sample.
+    The best value is 1 and the worst value is -1. Values near 0 indicate
+    overlapping clusters.
+    Parameters
+    ----------
+    X : array [n_samples_a, n_features]
+        Feature array.
+    labels : array, shape = [n_samples]
+             label values for each sample
+    metric : string, or callable
+        The metric to use when calculating distance between instances in a
+        feature array. If metric is a string, it must be one of the options
+        allowed by metrics.pairwise.pairwise_distances. If X is the distance
+        array itself, use "precomputed" as the metric.
+    `**kwds` : optional keyword parameters
+        Any further parameters are passed directly to the distance function.
+        If using a scipy.spatial.distance metric, the parameters are still
+        metric dependent. See the scipy docs for usage examples.
+    Returns
+    -------
+    silhouette : array, shape = [n_samples]
+        Silhouette Coefficient for each samples.
+    References
+    ----------
+    Peter J. Rousseeuw (1987). "Silhouettes: a Graphical Aid to the
+        Interpretation and Validation of Cluster Analysis". Computational
+        and Applied Mathematics 20: 53-65. doi:10.1016/0377-0427(87)90125-7.
+    http://en.wikipedia.org/wiki/Silhouette_(clustering)
+    """
+    A = _intra_cluster_distances_block(X, labels, metric, n_jobs=n_jobs,
+                                       **kwds)
+    B = _nearest_cluster_distance_block(X, labels, metric, n_jobs=n_jobs,
+                                        **kwds)
+    sil_samples = (B - A) / np.maximum(A, B)
+    # nan values are for clusters of size 1, and should be 0
+    return np.nan_to_num(sil_samples)
+
+
+def _intra_cluster_distances_block_(subX, metric, **kwds):
+    distances = pairwise_distances(subX, metric=metric, **kwds)
+    return distances.sum(axis=1) / (distances.shape[0] - 1)
+
+
+def _intra_cluster_distances_block(X, labels, metric, n_jobs=1, **kwds):
+    """Calculate the mean intra-cluster distance for sample i.
+    Parameters
+    ----------
+    X : array [n_samples_a, n_features]
+        Feature array.
+    labels : array, shape = [n_samples]
+        label values for each sample
+    metric : string, or callable
+        The metric to use when calculating distance between instances in a
+        feature array. If metric is a string, it must be one of the options
+        allowed by metrics.pairwise.pairwise_distances. If X is the distance
+        array itself, use "precomputed" as the metric.
+    `**kwds` : optional keyword parameters
+        Any further parameters are passed directly to the distance function.
+        If using a scipy.spatial.distance metric, the parameters are still
+        metric dependent. See the scipy docs for usage examples.
+    Returns
+    -------
+    a : array [n_samples_a]
+        Mean intra-cluster distance
+    """
+    intra_dist = np.zeros(labels.size, dtype=float)
+    values = Parallel(n_jobs=n_jobs)(
+            delayed(_intra_cluster_distances_block_)
+                (X[np.where(labels == label)[0]], metric, **kwds)
+                for label in np.unique(labels))
+    for label, values_ in zip(np.unique(labels), values):
+        intra_dist[np.where(labels == label)[0]] = values_
+    return intra_dist
+
+
+def _nearest_cluster_distance_block_(subX_a, subX_b, metric, **kwds):
+    dist = pairwise_distances(subX_a, subX_b, metric=metric, **kwds)
+    dist_a = dist.mean(axis=1)
+    dist_b = dist.mean(axis=0)
+    return dist_a, dist_b
+
+
+def _nearest_cluster_distance_block(X, labels, metric, n_jobs=1, **kwds):
+    """Calculate the mean nearest-cluster distance for sample i.
+    Parameters
+    ----------
+    X : array [n_samples_a, n_features]
+        Feature array.
+    labels : array, shape = [n_samples]
+        label values for each sample
+    metric : string, or callable
+        The metric to use when calculating distance between instances in a
+        feature array. If metric is a string, it must be one of the options
+        allowed by metrics.pairwise.pairwise_distances. If X is the distance
+        array itself, use "precomputed" as the metric.
+    `**kwds` : optional keyword parameters
+        Any further parameters are passed directly to the distance function.
+        If using a scipy.spatial.distance metric, the parameters are still
+        metric dependent. See the scipy docs for usage examples.
+    X : array [n_samples_a, n_features]
+        Feature array.
+    Returns
+    -------
+    b : float
+        Mean nearest-cluster distance for sample i
+    """
+    inter_dist = np.empty(labels.size, dtype=float)
+    inter_dist.fill(np.inf)
+    # Compute cluster distance between pairs of clusters
+    unique_labels = np.unique(labels)
+
+    values = Parallel(n_jobs=n_jobs)(
+            delayed(_nearest_cluster_distance_block_)(
+                X[np.where(labels == label_a)[0]],
+                X[np.where(labels == label_b)[0]],
+                metric, **kwds)
+                for label_a, label_b in combinations(unique_labels, 2))
+
+    for (label_a, label_b), (values_a, values_b) in \
+            zip(combinations(unique_labels, 2), values):
+
+            indices_a = np.where(labels == label_a)[0]
+            inter_dist[indices_a] = np.minimum(values_a, inter_dist[indices_a])
+            del indices_a
+            indices_b = np.where(labels == label_b)[0]
+            inter_dist[indices_b] = np.minimum(values_b, inter_dist[indices_b])
+            del indices_b
+    return inter_dist
+
+
+def mini_test(every):
+    print 'Loading simulation data, using every', every, 'angles and wavelength.'
+    sim_data_init = get_results(every, every)
+    print 'Total number of rows is', len(sim_data_init)
+
+    # Define init parameters
+    ddict = DEFAULT_SIM_DDICT
+    pdict = DEFAULT_SIM_PDICT
+    direc = 'Gamma-M'
+    pol = 'TE'
+    pol_suf = pdict[pol]
+    theta_split = None
+    field_type = 'electric'
+    cluster_type = 'BayesianGaussianMixture'
+
+    # Gaussian Mixture settings -> every = 5 works
+    common_clkws = dict(covariance_type='tied',
+                        max_iter=20,
+                        weight_concentration_prior=1.e-15,
+                        treat_complex=None,
+                        preprocess='normalize',
+                        random_state=0)  # <- for reproducability
+
+    clkw_dicts = defaultdict(dict)
+    for direc_ in ddict:
+        for pol_ in pdict:
+            clkw_dicts[direc_][pol_] = deepcopy(common_clkws)
+
+    # Individual settings
+    clkw_dicts['Gamma-K']['TE']['n_components'] = 8
+    clkw_dicts['Gamma-K']['TM']['n_components'] = 8  # maybe 8, before: 7
+    clkw_dicts['Gamma-M']['TE']['n_components'] = 16  # maybe 8, before: 7
+    clkw_dicts['Gamma-M']['TM']['n_components'] = 7
+    clkw_dicts = dict(clkw_dicts)
+
+    # Clustering
+    sim_data, model_data = cluster_all_modes(sim_data_init,
+                                             theta_split=theta_split,
+                                             cluster_type=cluster_type,
+                                             cluster_kwargs_dicts=clkw_dicts,
+                                             pols=[pol],
+                                             direcs=[direc],
+                                             field_type=field_type)
+
+
 def test():
     logger = logging.getLogger(__name__)
-    df = get_results(4,4)
+    df = get_results(4, 4)
     lengths, pointlist, domain_ids = get_metadata()
-    data = test_data_for_sims_([0,1,2,3], 0, 'electric')
+    data = test_data_for_sims_([0, 1, 2, 3], 0, 'electric')
     print data
 
 
 if __name__ == '__main__':
     log_fmt = '%(asctime)s - %(levelname)s - %(message)s'
     logging.basicConfig(level=logging.INFO, format=log_fmt)
-    test()
+    mini_test(20)

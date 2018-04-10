@@ -37,13 +37,13 @@ def sha256_checksum(filename, block_size=65536, max_blocks=None):
     with open(filename, 'rb') as f:
         for block in iter(lambda: f.read(block_size), b''):
             sha256.update(block)
-            if not max_blocks is None:
+            if max_blocks is not None:
                 i_block += 1
                 if i_block >= max_blocks:
                     break
     
     # Include file size into the reduced hash
-    if not max_blocks is None:
+    if max_blocks is not None:
         sha256.update(str(os.path.getsize(filename)))
     return sha256.hexdigest()
 
