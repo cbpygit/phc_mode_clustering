@@ -65,4 +65,4 @@ def test_GMM(every):
 if __name__ == '__main__':
     log_fmt = '%(asctime)s - %(levelname)s - %(message)s'
     logging.basicConfig(level=logging.DEBUG, format=log_fmt)
-    test_GMM(20)
+    test_GMM(1)

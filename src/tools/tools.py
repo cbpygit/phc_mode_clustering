@@ -13,6 +13,8 @@ import numpy as np
 import pandas as pd
 
 from scipy.linalg import expm, norm
+from typing import Any, Union
+
 from silhouette_implementations import silhouette_samples_block
 from sklearn import cluster, mixture, preprocessing
 from sklearn.metrics import silhouette_samples, silhouette_score
@@ -23,15 +25,19 @@ from sklearn.externals import joblib
 DEFAULT_SIM_DDICT = {'Gamma-K': 0., 'Gamma-M': 90.}
 DEFAULT_SIM_PDICT = {'TM': '_2', 'TE': '_1'}
 POLS = ['TE', 'TM']
-FIELDS = dict(electric='E_abs', magnetic='H_abs')
+FIELDS = dict(electric='E', magnetic='H')
 
 # Paths and file names
 PROJECT_DIR = os.path.normpath(os.path.join(os.path.dirname(__file__),
                                             os.pardir,
                                             os.pardir))
 RAW_DATA_DIR = os.path.join(PROJECT_DIR, 'data', 'raw')
+RAW_DATA_DIR_DUMMY = os.path.join(PROJECT_DIR, 'data', 'raw_dummy')
 DATA_FILE_NAMES = dict(results='parameters_and_results.h5',
-                       fields='field_data.h5')
+                       fields='field_data_{}_{}.h5')
+
+# Helper to switch between real and dummy data
+_USE_DUMMIES = {'do': False}
 
 # A global joblib cache to persist output of functions.
 MEMORY = joblib.Memory(cachedir=os.path.abspath('cache'), verbose=0)
@@ -42,16 +48,45 @@ def format_time(t):
     return str(timedelta(seconds=t))
 
 
-def get_data_file_path(kind='fields'):
-    """ Returns the full path to the data file of `kind`.
+def set_dummy_mode(use_dummies):
+    """
+    Convenience function to toggle dummy mode.
 
     Parameters
     ----------
-    kind : {'fields', 'results'}
+    use_dummies : bool
+        Whether to use dummy data.
+
+    """
+    logger = logging.getLogger(__name__)
+    if use_dummies:
+        logger.info('Switched to dummy data')
+    else:
+        logger.info('Switched to real mode')
+    _USE_DUMMIES['do'] = use_dummies
+
+
+def get_data_file_path(kind='fields', field_comp='E', polarization='TE'):
+    """ Returns the full path to the data file of `kind`, as well as field
+    component `field_comp` and `polarization` in case of field data.
+
+    Parameters
+    ----------
+    kind : {'fields' | 'results'}
         Short-hand key for the data file, i.e. 'fields':'field_data.h5' and
         'results':'parameters_and_results.h5'.
+    field_type : {'E' | 'H'}, ignored if kind=='results'
+        Field component, 'E' for electric or 'H' for magnetic field.
+    polarization : {'TE' | 'TM'}, ignored if kind=='results'
+        Polarization, 'TE' for transversal electric or 'TM' for transversal
+        magnetic.
     """
-    path = os.path.join(RAW_DATA_DIR, DATA_FILE_NAMES[kind])
+    fname = DATA_FILE_NAMES[kind]
+    if kind == 'fields':
+        fname = fname.format(field_comp[0], polarization)
+
+    data_folder = RAW_DATA_DIR_DUMMY if _USE_DUMMIES['do'] else RAW_DATA_DIR
+    path = os.path.join(data_folder, fname)
     if not os.path.exists(path):
         raise EnvironmentError('The database file "{}" '.
                                format(DATA_FILE_NAMES[kind]) +
@@ -186,12 +221,12 @@ def get_hex_plane(plane_idx, inradius, z_height, z_center, np_xy,
         x = np.linspace(-ri + p_eps, ri - p_eps, np_xy)
         y = np.linspace(-rc + p_eps, rc - p_eps, np_xy)
         x_y = np.meshgrid(x, y)
-        # x_y_rs = np.concatenate((x_y[0][..., np.newaxis],
-        #                          x_y[1][..., np.newaxis]),
-        #                         axis=2)
-        x_y_rs = np.concatenate((np.expand_dims(x_y[0], axis=-1),
-                                 np.expand_dims(x_y[1], axis=-1)),
+        x_y_rs = np.concatenate((x_y[0][..., np.newaxis],
+                                 x_y[1][..., np.newaxis]),
                                 axis=2)
+        # x_y_rs = np.concatenate((np.expand_dims(x_y[0], axis=-1),
+        #                          np.expand_dims(x_y[1], axis=-1)),
+        #                         axis=2)
         z = np.ones((np_xy, np_xy, 1)) * z_center
         pl = np.concatenate((x_y_rs, z), axis=2)
         pl = pl.reshape(-1, pl.shape[-1])
@@ -291,8 +326,11 @@ def select_from_field_data_store(sim_numbers, ipol, field_type='electric'):
     logger.info('Collecting field data')
     logger.debug('Length of `sim_numbers`: {}'.format(len(sim_numbers)))
 
-    # Open the HDF5 store and verify the index
-    h5 = get_data_file_path()
+    # Open the appropriate HDF5 store and verify the index
+    pol = POLS[ipol]
+    comp = FIELDS[field_type]
+    h5 = get_data_file_path(field_comp=comp, polarization=pol)
+    logger.debug('Opening HDF5store: {}'.format(h5))
     h5store = pd.HDFStore(h5)
 
     # Check proper index to avoid performance issues
@@ -305,9 +343,7 @@ def select_from_field_data_store(sim_numbers, ipol, field_type='electric'):
                     'to recreate the full index, then retry.')
 
     # Query the database
-    pol = POLS[ipol]
-    comp = FIELDS[field_type]
-    str_ = 'number in sim_numbers & field=comp & polarization=pol'
+    str_ = 'index in sim_numbers'
     df = h5store.select('data', where=str_)
     h5store.close()
     return df
@@ -811,15 +847,16 @@ def classify_with_model(sim_data_, model, pols=None, direcs=None,
     return sim_data, dict(sim_num_data)
 
 
-def test():
+def test(every):
     logger = logging.getLogger(__name__)
-    df = get_results(4, 4)
+    df = get_results(every, every)
     lengths, pointlist, domain_ids = get_metadata()
     data = load_field_data_for_sims_([0, 1, 2, 3], 0, 'electric')
-    logger.info(data)
+    logger.info(data.shape)
 
 
 if __name__ == '__main__':
     log_fmt = '%(asctime)s - %(levelname)s - %(message)s'
     logging.basicConfig(level=logging.DEBUG, format=log_fmt)
-    test()
+    set_dummy_mode(True)
+    test(1)

@@ -151,20 +151,26 @@ def save_plots_models(directory, sim_data_, model_data,
         # Excel
         fname_fmt = 'results_n_clusters_comb_' + \
                     '_'.join([str(i) for i in n_clusters_list])
-        file_path = os.path.join(subdir, fname_fmt + '.xlsx')
-        writer = pd.ExcelWriter(file_path)
+
         logger.info('Writing data to Excel')
-        sim_data_.to_excel(writer, 'data')
-        writer.save()
+        file_path = os.path.join(subdir, fname_fmt + '.xlsx')
+        try:
+            writer = pd.ExcelWriter(file_path)
+            sim_data_.to_excel(writer, 'data')
+            writer.save()
+        except Exception as e:
+            logger.warn('Unable to write Excel file. The error was: {}'.
+                        format(str(e)))
 
         # Pickle
         logger.info('Writing data to pickle')
         sim_data_.to_pickle(os.path.join(subdir, fname_fmt + '.pkl'))
 
         # Copy metadata-file
-        from shutil import copyfile
-        copyfile(metadata.fid.name,
-                 os.path.join(subdir, 'field_hex_metadata.npz'))
+        logger.info('Writing metadata to compressed numpy file.')
+        metaf = os.path.join(subdir, 'field_hex_metadata.npz')
+        np.savez_compressed(metaf, pointlist=pointlist, lengths=lengths,
+                            domain_ids=domain_ids)
     logger.info('Finished')
 
 
