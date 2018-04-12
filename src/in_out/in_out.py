@@ -20,6 +20,9 @@ sys.path.insert(0, PROJECT_DIR)
 from src.visualization import visualize as vis
 from src.tools import tools
 
+# Module constants
+STD_METADATA_FILENAME = 'field_hex_metadata.npz'
+
 
 def pickle_model(model, filepath):
     joblib.dump(model, filepath, compress=9)
@@ -41,8 +44,10 @@ def makedirs(name, mode=511):
 def save_plots_models(directory, sim_data_, model_data,
                       cluster_type, metadata, theta_split=None,
                       only_plots=False, overlay_kwargs=None,
-                      field_plane_indices=[0, 3, 4]):
+                      field_plane_indices=None):
     logger = logging.getLogger(__name__)
+    if field_plane_indices is None:
+        field_plane_indices = [0, 3, 4]
     pointlist = metadata['pointlist']
     lengths = metadata['lengths']
     domain_ids = metadata['domain_ids']
@@ -168,15 +173,14 @@ def save_plots_models(directory, sim_data_, model_data,
 
         # Copy metadata-file
         logger.info('Writing metadata to compressed numpy file.')
-        metaf = os.path.join(subdir, 'field_hex_metadata.npz')
+        metaf = os.path.join(subdir, STD_METADATA_FILENAME)
         np.savez_compressed(metaf, pointlist=pointlist, lengths=lengths,
                             domain_ids=domain_ids)
     logger.info('Finished')
 
 
-def load_complete_data(directory, cluster_type,
-                       n_clusters_dicts, suffix='',
-                       theta_split=None):
+def load_data(directory, cluster_type, n_clusters_dicts, suffix='',
+              theta_split=None):
     logger = logging.getLogger(__name__)
     if theta_split is None:
         subdir = os.path.join(directory, cluster_type) + suffix
@@ -185,7 +189,7 @@ def load_complete_data(directory, cluster_type,
 
     # Load metadata
     logger.info('Loading metadata...')
-    _metadata = np.load(os.path.join(subdir, 'field_hex_metadata.npz'))
+    _metadata = np.load(os.path.join(subdir, STD_METADATA_FILENAME))
 
     # Load pickled models
     logger.info('Loading model and sim_num data...')
@@ -195,7 +199,6 @@ def load_complete_data(directory, cluster_type,
     for direc, poldict in n_clusters_dicts.iteritems():
         for pol, n_clusters in poldict.iteritems():
             n_clusters_list[_sorting[direc][pol]] = n_clusters
-            pol_suf = tools.DEFAULT_SIM_PDICT[pol]
             dpdir = os.path.join(subdir, '{}_{}_ncluster_{}'.
                                  format(direc, pol, n_clusters))
             _model_data[direc][pol] = {}
@@ -214,11 +217,5 @@ def load_complete_data(directory, cluster_type,
     return _sim_data, _model_data, _metadata
 
 
-def test():
-    pass
-
-
 if __name__ == '__main__':
-    log_fmt = '%(asctime)s - %(levelname)s - %(message)s'
-    logging.basicConfig(level=logging.DEBUG, format=log_fmt)
-    test()
+    pass
