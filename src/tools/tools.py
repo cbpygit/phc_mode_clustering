@@ -343,8 +343,8 @@ def select_from_field_data_store(sim_numbers, ipol, field_type='electric'):
                     'to recreate the full index, then retry.')
 
     # Query the database
-    str_ = 'index in sim_numbers'
-    df = h5store.select('data', where=str_)
+    coords = h5store.select_as_coordinates('data', 'index=sim_numbers')
+    df = h5store.select('data', where=coords)
     h5store.close()
     return df
 
@@ -851,12 +851,12 @@ def test(every):
     logger = logging.getLogger(__name__)
     df = get_results(every, every)
     lengths, pointlist, domain_ids = get_metadata()
-    data = load_field_data_for_sims_([0, 1, 2, 3], 0, 'electric')
+    data = load_field_data_for_sims_([0, 1, 2, 3], 1, 'electric')
     logger.info(data.shape)
 
 
 if __name__ == '__main__':
     log_fmt = '%(asctime)s - %(levelname)s - %(message)s'
     logging.basicConfig(level=logging.DEBUG, format=log_fmt)
-    set_dummy_mode(True)
-    test(1)
+    #set_dummy_mode(True)
+    test(2)
