@@ -76,7 +76,7 @@ def test_MBKMeans(every, do_store=False):
     pol = 'TE'
     pol_suf = pdict[pol]
     theta_split = None
-    field_type = 'magnetic' # 'electric' TODO
+    field_type = 'electric'
     cluster_type = 'MiniBatchKMeans'
 
     # Gaussian Mixture settings -> every = 5 works
@@ -118,4 +118,4 @@ if __name__ == '__main__':
     log_fmt = '%(asctime)s - %(levelname)s - %(message)s'
     logging.basicConfig(level=logging.DEBUG, format=log_fmt)
     #test_GMM(20)
-    test_MBKMeans(5, True)
+    test_MBKMeans(20, True)

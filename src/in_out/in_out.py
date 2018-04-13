@@ -56,7 +56,7 @@ def save_plots_models(directory, sim_data_, model_data,
         overlay_kwargs = dict(aspect='auto')
 
     # Create directories
-    logger.info('\nSaving model data and plots...')
+    logger.info('Saving model data and plots...')
     if theta_split is None:
         subdir = os.path.join(directory, cluster_type)
     else:
