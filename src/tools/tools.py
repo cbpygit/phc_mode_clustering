@@ -48,7 +48,7 @@ def format_time(t):
     return str(timedelta(seconds=t))
 
 
-def set_dummy_mode(use_dummies):
+def set_dummy_mode(use_dummies, verbose=True):
     """
     Convenience function to toggle dummy mode.
 
@@ -59,10 +59,11 @@ def set_dummy_mode(use_dummies):
 
     """
     logger = logging.getLogger(__name__)
-    if use_dummies:
-        logger.info('Switched to dummy data')
-    else:
-        logger.info('Switched to real mode')
+    if verbose:
+        if use_dummies:
+            logger.info('Switched to dummy data')
+        else:
+            logger.info('Switched to real mode')
     _USE_DUMMIES['do'] = use_dummies
 
 
@@ -89,7 +90,7 @@ def get_data_file_path(kind='fields', field_comp='E', polarization='TE'):
     path = os.path.join(data_folder, fname)
     if not os.path.exists(path):
         raise EnvironmentError('The database file "{}" '.
-                               format(DATA_FILE_NAMES[kind]) +
+                               format(fname) +
                                'is missing in your data/raw folder. You may' +
                                ' want to run the "src/data/make_dataset.py" ' +
                                'script to download and verify the necessary' +
@@ -851,7 +852,7 @@ def test(every):
     logger = logging.getLogger(__name__)
     df = get_results(every, every)
     lengths, pointlist, domain_ids = get_metadata()
-    data = load_field_data_for_sims_([0, 1, 2, 3], 1, 'electric')
+    data = load_field_data_for_sims_([0, 1, 2, 3], 0, 'magnetic')
     logger.info(data.shape)
 
 
