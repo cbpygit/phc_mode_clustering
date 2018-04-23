@@ -39,6 +39,9 @@ DATA_FILE_NAMES = dict(results='parameters_and_results.h5',
 # Helper to switch between real and dummy data
 _USE_DUMMIES = {'do': False}
 
+# Helper to toggle cache usage
+_USE_CACHE = {'do': False}
+
 # A global joblib cache to persist output of functions.
 MEMORY = joblib.Memory(cachedir=os.path.abspath('cache'), verbose=0)
 
@@ -65,6 +68,25 @@ def set_dummy_mode(use_dummies, verbose=True):
         else:
             logger.info('Switched to real mode')
     _USE_DUMMIES['do'] = use_dummies
+
+
+def set_cache(use_cache, verbose=True):
+    """
+    Convenience function to toggle dummy mode.
+
+    Parameters
+    ----------
+    use_dummies : bool
+        Whether to use dummy data.
+
+    """
+    logger = logging.getLogger(__name__)
+    if verbose:
+        if use_cache:
+            logger.info('Switched to using cache')
+        else:
+            logger.info('Switched to not using cache')
+    _USE_CACHE['do'] = use_cache
 
 
 def get_data_file_path(kind='fields', field_comp='E', polarization='TE'):
@@ -363,7 +385,7 @@ load_field_data_for_sims = MEMORY.cache(load_field_data_for_sims_)
 
 
 def get_clustering_input_data(data, ipol, treat_complex, preprocess,
-                              field_type='electric', use_cache=False):
+                              field_type='electric', use_cache=None):
     """
     Loads the field data for the given result dataframe `data` and the given
     field type and polarization and preprocesses the data for clustering.
@@ -384,11 +406,12 @@ def get_clustering_input_data(data, ipol, treat_complex, preprocess,
         Name of a sklearn.preprocessing function to be used to preprocess
         the data (e.g. `'scale'`).
     field_type: {'electric' | 'magnetic'}
-    use_cache : bool
+    use_cache : bool or None
         Whether to use the joblib cache for the `load_field_data_for_sims_`
         function. This will cause a small overhead on the first call but
         will give a large speed-up on following calls with the same
-        keyword values.
+        keyword values. If `None`, the "environment" parameter controlled
+        using the `set_cache`-function is used.
 
     Returns
     -------
@@ -398,6 +421,8 @@ def get_clustering_input_data(data, ipol, treat_complex, preprocess,
     logger = logging.getLogger(__name__)
     t0 = time.time()
     sim_nums = data.index.tolist()
+    if use_cache is None:
+        use_cache = _USE_CACHE['do']
     if use_cache:
         test_data = load_field_data_for_sims(sim_nums, ipol,
                                              field_type=field_type)
@@ -418,7 +443,9 @@ def get_clustering_input_data(data, ipol, treat_complex, preprocess,
 
 
 def get_single_sample(sim_num, ipol, treat_complex='abs', preprocess='scale',
-                      field_type='electric', use_cache=False):
+                      field_type='electric', use_cache=None):
+    if use_cache is None:
+        use_cache = _USE_CACHE['do']
     if use_cache:
         test_data = load_field_data_for_sims([sim_num], ipol,
                                              field_type=field_type)

@@ -87,6 +87,7 @@ def save_plots_models(directory, sim_data_, model_data,
                 pickle_model(sim_nums, os.path.join(dpdir, 'sim_nums.pkl'))
 
             # Plots ---------------------------------------------------------
+            logger.info('Plotting...')
             data = sim_data_.loc[sim_nums]
 
             # Silhouettes
@@ -101,7 +102,6 @@ def save_plots_models(directory, sim_data_, model_data,
             plt.close("all")
 
             # Comparison
-            logger.info('Plotting...')
             fig = plt.figure(1, figsize=(8, 3))
             vis.compare_values_and_classification(data, 'E', pol_suf, fig,
                                                   overlay_kwargs=overlay_kwargs,
