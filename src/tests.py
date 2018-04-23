@@ -118,4 +118,4 @@ if __name__ == '__main__':
     log_fmt = '%(asctime)s - %(levelname)s - %(message)s'
     logging.basicConfig(level=logging.DEBUG, format=log_fmt)
     #test_GMM(20)
-    test_MBKMeans(20, True)
+    test_MBKMeans(2, True)

@@ -851,7 +851,7 @@ def classify_with_model(sim_data_, model, pols=None, direcs=None,
 def test(every):
     logger = logging.getLogger(__name__)
     df = get_results(every, every)
-    lengths, pointlist, domain_ids = get_metadata()
+    #lengths, pointlist, domain_ids = get_metadata()
     data = load_field_data_for_sims_([0, 1, 2, 3], 0, 'magnetic')
     logger.info(data.shape)
 
