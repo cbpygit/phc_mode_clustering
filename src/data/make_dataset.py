@@ -6,22 +6,37 @@ import requests
 from urllib import urlretrieve
 
 import click
-from dotenv import find_dotenv, load_dotenv
 
 # Download path of the raw data
 DOI = 'https://dx.doi.org/10.5442/ND000001'
-DATA_DOWNLOAD_FILENAMES = ['parameters_and_results.h5', 'field_data.h5']
 
+# Full and reduced checksums for file verification
 CHECKSUMS_FULL = {
     'parameters_and_results.h5':
         '9d5bd9642128641dfe63644b514219261bf4570ffccbbec3c68ec517a0040b63',
-    'field_data.h5':
+    'field_data_E_TE.h5':
+        '7eb68ea68792ac69fd8f428049fb5398f37e6116f6b97a5c037d570afd1af623',
+    'field_data_H_TE.h5':
+        '7eb68ea68792ac69fd8f428049fb5398f37e6116f6b97a5c037d570afd1af623',
+    'field_data_E_TM.h5':
+        '7eb68ea68792ac69fd8f428049fb5398f37e6116f6b97a5c037d570afd1af623',
+    'field_data_H_TM.h5':
         '7eb68ea68792ac69fd8f428049fb5398f37e6116f6b97a5c037d570afd1af623'}
+
 CHECKSUMS_REDUCED = {
     'parameters_and_results.h5':
         'f678e9efbe8dccef11afac2e928e1c9b2f07ab85c45539ce4fffbcbb8c1497c4',
-    'field_data.h5':
-        '32884d902dce79b93b6e8eb5a3d71149c056db5ec20036c386f3016feae8dc61'}
+    'field_data_E_TE.h5':
+        '7eb68ea68792ac69fd8f428049fb5398f37e6116f6b97a5c037d570afd1af623',
+    'field_data_H_TE.h5':
+        '7eb68ea68792ac69fd8f428049fb5398f37e6116f6b97a5c037d570afd1af623',
+    'field_data_E_TM.h5':
+        '7eb68ea68792ac69fd8f428049fb5398f37e6116f6b97a5c037d570afd1af623',
+    'field_data_H_TM.h5':
+        '7eb68ea68792ac69fd8f428049fb5398f37e6116f6b97a5c037d570afd1af623'}
+
+# Additional constants
+DATA_DOWNLOAD_FILENAMES = CHECKSUMS_FULL.keys()
 MAX_BLOCKS = 10000
 
 # Path to the root folder
@@ -117,15 +132,11 @@ def main(full_checksum, print_checksums):
             if not match:
                 raise ValueError('Checksum mismatch for file {}! Stopping.'.
                                  format(fn))
-    logger.info('Verification successful.')
+    if not print_checksums:
+        logger.info('Verification successful.')
 
 
 if __name__ == '__main__':
     log_fmt = '%(asctime)s - %(levelname)s - %(message)s'
     logging.basicConfig(level=logging.INFO, format=log_fmt)
-
-    # find .env automagically by walking up directories until it's found, then
-    # load up the .env entries as environment variables
-    load_dotenv(find_dotenv())
-
     main()
