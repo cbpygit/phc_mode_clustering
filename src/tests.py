@@ -25,7 +25,7 @@ def test_GMM(every):
     pol = 'TE'
     pol_suf = pdict[pol]
     theta_split = None
-    field_type = 'magnetic' # 'electric' TODO
+    field_type = 'electric'
     cluster_type = 'GaussianMixture'
 
     # Gaussian Mixture settings -> every = 5 works
@@ -52,8 +52,6 @@ def test_GMM(every):
                                              theta_split=theta_split,
                                              cluster_type=cluster_type,
                                              cluster_kwargs_dicts=clkw_dicts,
-                                             # pols=[pol],
-                                             # direcs=[direc],
                                              field_type=field_type)
 
     lengths, pointlist, domain_ids = tools.get_metadata()
@@ -117,5 +115,4 @@ def test_MBKMeans(every, do_store=False):
 if __name__ == '__main__':
     log_fmt = '%(asctime)s - %(levelname)s - %(message)s'
     logging.basicConfig(level=logging.DEBUG, format=log_fmt)
-    #test_GMM(20)
-    test_MBKMeans(20, True)
+    test_GMM(5)
