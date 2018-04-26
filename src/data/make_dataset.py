@@ -10,7 +10,7 @@ from urllib import urlretrieve
 import click
 
 # Download path of the raw data
-DOI = 'https://dx.doi.org/10.5442/ND000001'
+DOI = 'https://dx.doi.org/10.5442/ND000002'
 
 # Full and reduced checksums for file verification
 CHECKSUMS_FULL = {
