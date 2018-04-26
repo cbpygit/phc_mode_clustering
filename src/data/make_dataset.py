@@ -178,6 +178,7 @@ def main(full_checksum, print_checksums):
     else:
         logger.critical('Terminating as some downloads failed. See previous ' +
                         'warnings for details.')
+        return
 
     logger.info('Verifying the downloaded files...')
     max_blocks = None if full_checksum else MAX_BLOCKS
