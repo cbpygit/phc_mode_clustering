@@ -54,11 +54,6 @@ def test_GMM(every):
                                              cluster_kwargs_dicts=clkw_dicts,
                                              field_type=field_type)
 
-    lengths, pointlist, domain_ids = tools.get_metadata()
-    metadata = dict(lengths=lengths, pointlist=pointlist, domain_ids=domain_ids)
-    in_out.save_plots_models(MODEL_DIR, sim_data,
-                             model_data, cluster_type, metadata)
-
 
 def test_MBKMeans(every, do_store=False):
     logger = logging.getLogger(__name__)
