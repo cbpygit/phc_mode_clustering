@@ -13,11 +13,10 @@ import numpy as np
 import pandas as pd
 
 from scipy.linalg import expm, norm
-from typing import Any, Union
 
 from silhouette_implementations import silhouette_samples_block
 from sklearn import cluster, mixture, preprocessing
-from sklearn.metrics import silhouette_samples, silhouette_score
+from sklearn.metrics import silhouette_samples
 from sklearn.metrics.pairwise import euclidean_distances
 from sklearn.externals import joblib
 
@@ -217,6 +216,28 @@ def is_odd(num):
 
 
 def is_inside_hexagon(x, y, d=None, x0=0., y0=0.):
+    """Checks whether points (`x`,`y`) lie inside a given hexagon centered
+    at (`x0`, `y0`) with maximal diameter `d`. If `d` is `None`,
+    it is determined from the the minimum and maximum y coordinates. In that
+    case, to avoid floating point problems, the diameter is internally
+    increased by `10*eps` where `eps` is the floating point precision defined
+    by `numpy.finfo(float).eps`.
+
+    Parameters
+    ----------
+    x, y : numpy.ndarray
+        x/y coordinates to be checked.
+    d : float or None, default: None
+        Maximal diameter of the hexagon. If `None` it is inferred from the
+        given y coordinates.
+    x0, y0 : float, default: 0.
+        Coodinates of the center of the hexagon.
+
+    Returns
+    -------
+    numpy.ndarray with booleans, True if the point is inside the hexagon.
+
+    """
     p_eps = 10. * np.finfo(float).eps
     if d is None:
         d = y.max() - y.min() + p_eps
@@ -228,7 +249,34 @@ def is_inside_hexagon(x, y, d=None, x0=0., y0=0.):
 
 def get_hex_plane(plane_idx, inradius, z_height, z_center, np_xy,
                   np_z):
-    # We use 10* float machine precision to correct the ccordinates
+    """Returns the coordinates of a symmetry plane of a unit cell with a
+    hexagonal base (defined to lie in the xy plane) and a hight of `z_height`.
+
+    Parameters
+    ----------
+    plane_idx : {0 | 1 | 2 | 3 | 4 | 5 | 6}
+        Index of the plane to be returned. Indices 0 to 5 are the
+        "vertical" symmetry planes, starting with the xz plane and continuing
+        with planes rotated by 60°. These planes have a rectangular shape.
+        Plane 6 is the xy plane centered at `z_center` in z direction, which
+        has a hexagonal shape.
+    inradius : float
+        The inradius of the hexagon.
+    z_height : float
+        The hight of the unit cell in z direction.
+    z_center : float
+        The z center of the xy plane (with `plane_idx=6`).
+    np_xy : int
+        Number of sampling points in the x/y direction.
+    np_z : int or 'auto'
+        Number of sampling points in z direction. If `'auto'`, it is inferred
+        from `np_xy` to have an approximatly uniform sampling.
+    Returns
+    -------
+    numpy.ndarray with (x,y,z) coordinates of the points on the specified
+    plane.
+    """
+    # We use 10* float machine precision to correct the coordinates
     # to avoid leaving the computational domain due to precision
     # problems
     p_eps = 10. * np.finfo(float).eps
@@ -247,9 +295,6 @@ def get_hex_plane(plane_idx, inradius, z_height, z_center, np_xy,
         x_y_rs = np.concatenate((x_y[0][..., np.newaxis],
                                  x_y[1][..., np.newaxis]),
                                 axis=2)
-        # x_y_rs = np.concatenate((np.expand_dims(x_y[0], axis=-1),
-        #                          np.expand_dims(x_y[1], axis=-1)),
-        #                         axis=2)
         z = np.ones((np_xy, np_xy, 1)) * z_center
         pl = np.concatenate((x_y_rs, z), axis=2)
         pl = pl.reshape(-1, pl.shape[-1])
@@ -283,6 +328,11 @@ def get_hex_plane(plane_idx, inradius, z_height, z_center, np_xy,
 
 def get_hex_planes_point_list(inradius, z_height, z_center, np_xy, np_z,
                               plane_indices=None):
+    """Returns a list of planes in the unit cell with hexagonal base for the
+    given plane indices. See the doc-string of `get_hex_plane` for more
+    information.
+
+    """
     # Construct the desired planes
     if plane_indices is None:
         plane_indices = [0, 1, 2, 3, 6]
@@ -297,6 +347,10 @@ def get_hex_planes_point_list(inradius, z_height, z_center, np_xy, np_z,
 
 
 def hex_planes_point_list_for_keys(keys, plane_indices=None):
+    """Same as `get_hex_planes_point_list`, but extracts the parameters from
+    keys as passed to a JCMsuite simulation.
+
+    """
     if plane_indices is None:
         plane_indices = [0, 1, 2, 3, 6]
     if 'uol' not in keys:
@@ -316,7 +370,8 @@ def hex_planes_point_list_for_keys(keys, plane_indices=None):
 def plane_idx_iter(lengths_):
     """Yields the plane index plus lower index `idx_i` and upper index
     `idx_f` of the point list representing this plane
-    (i.e. pointlist[idx_i:idx_f]).
+    (i.e. pointlist[idx_i:idx_f]). See the docstrings of
+    `get_hex_planes_point_list` and `get_hex_plane` for more information.
 
     """
     i = 0
@@ -326,8 +381,7 @@ def plane_idx_iter(lengths_):
 
 
 def select_from_field_data_store(sim_numbers, ipol, field_type='electric'):
-    """
-    Queries the field HDF5 database and returns the rows that match
+    """Queries the field HDF5 database and returns the rows that match
     the given criteria.
 
     Parameters
@@ -372,7 +426,7 @@ def select_from_field_data_store(sim_numbers, ipol, field_type='electric'):
     return df
 
 
-def load_field_data_for_sims_(sim_numbers, ipol, field_type='electric'):
+def load_field_data_for_sims(sim_numbers, ipol, field_type='electric'):
     """Calls `select_from_field_data_store` but returns the data as
     numpy.ndarray. See the doc-string of `select_from_field_data_store`
     for details."""
@@ -381,13 +435,12 @@ def load_field_data_for_sims_(sim_numbers, ipol, field_type='electric'):
 
 
 # The cached version of the `test_data_for_sims_` function
-load_field_data_for_sims = MEMORY.cache(load_field_data_for_sims_)
+load_field_data_for_sims_cached = MEMORY.cache(load_field_data_for_sims)
 
 
 def get_clustering_input_data(data, ipol, treat_complex, preprocess,
                               field_type='electric', use_cache=None):
-    """
-    Loads the field data for the given result dataframe `data` and the given
+    """Loads the field data for the given result dataframe `data` and the given
     field type and polarization and preprocesses the data for clustering.
 
     Parameters
@@ -405,7 +458,7 @@ def get_clustering_input_data(data, ipol, treat_complex, preprocess,
     preprocess : None or str (function name of the sklearn.preprocessing module)
         Name of a sklearn.preprocessing function to be used to preprocess
         the data (e.g. `'scale'`).
-    field_type: {'electric' | 'magnetic'}
+    field_type : {'electric' | 'magnetic'}
     use_cache : bool or None
         Whether to use the joblib cache for the `load_field_data_for_sims_`
         function. This will cause a small overhead on the first call but
@@ -424,11 +477,11 @@ def get_clustering_input_data(data, ipol, treat_complex, preprocess,
     if use_cache is None:
         use_cache = _USE_CACHE['do']
     if use_cache:
+        test_data = load_field_data_for_sims_cached(sim_nums, ipol,
+                                                    field_type=field_type)
+    else:
         test_data = load_field_data_for_sims(sim_nums, ipol,
                                              field_type=field_type)
-    else:
-        test_data = load_field_data_for_sims_(sim_nums, ipol,
-                                              field_type=field_type)
     if treat_complex is not None:
         if treat_complex == 'concat':
             test_data = np.hstack((test_data.real, test_data.imag))
@@ -444,14 +497,19 @@ def get_clustering_input_data(data, ipol, treat_complex, preprocess,
 
 def get_single_sample(sim_num, ipol, treat_complex='abs', preprocess='scale',
                       field_type='electric', use_cache=None):
+    """Returns a single sample. See the doc-strings of
+    `get_clustering_input_data` and `select_from_field_data_store` for
+    explanations of the parameters.
+
+    """
     if use_cache is None:
         use_cache = _USE_CACHE['do']
     if use_cache:
+        test_data = load_field_data_for_sims_cached([sim_num], ipol,
+                                                    field_type=field_type)
+    else:
         test_data = load_field_data_for_sims([sim_num], ipol,
                                              field_type=field_type)
-    else:
-        test_data = load_field_data_for_sims_([sim_num], ipol,
-                                              field_type=field_type)
     if treat_complex is not None:
         if treat_complex == 'concat':
             test_data = np.hstack((test_data.real, test_data.imag))
@@ -463,6 +521,22 @@ def get_single_sample(sim_num, ipol, treat_complex='abs', preprocess='scale',
 
 
 def cluster_fit_data(cluster_type, samples, **cluster_kwargs):
+    """Applies a `sklearn` clustering algorithm defined in `sklearn.cluster`
+    or `sklearn.mixture` to fit to the given `samples`. `cluster_kwargs` are
+    automatically passed to the initialization of the given clusterer instance.
+
+    Some clustering algorithms enforce special procedures. These are
+    implemented for `'MeanShift'` and `'DBSCAN'`. Therefore, some clustering
+    algorithms may not be supported (tested `kmeans`, `MiniBatchKMeans`,
+    `GaussianMixture`, `BaysianGaussianMixture`, `MeanShift` and `DBSCAN`).
+
+    Returns
+    -------
+    model : trained model instance
+        A class instance of `sklearn.cluster` or `sklearn.mixture` with name
+        defined by `cluster_type`, fitted using the given `samples`.
+
+    """
     logger = logging.getLogger(__name__)
     t0 = time.time()
     if hasattr(cluster, cluster_type):
@@ -518,6 +592,17 @@ def cluster_fit_data(cluster_type, samples, **cluster_kwargs):
 
 
 def get_silhouette(samples, labels):
+    """Calculates the Silhouette coefficients and score for the given
+    `samples` and `labels`. Uses a memory efficient implementation in case
+    of an exception raised by `sklearn.metrics.silhouette_samples`.
+
+    Returns
+    -------
+    s_avg, s_samples : float, numpy.ndarray
+        Silhouette score (i.e. average of the Silhouette coefficients) and
+        Silhouette coefficients.
+
+    """
     logger = logging.getLogger(__name__)
     try:
         s_samples = silhouette_samples(samples, labels)
@@ -534,29 +619,78 @@ def get_silhouette(samples, labels):
             return None, None
 
 
-def get_only_sample_data(sim_data, pol='TE', direc='Gamma-K',
-                         treat_complex='abs', preprocess='normalize',
-                         field_type='electric'):
-    logger = logging.getLogger(__name__)
-    # Get polarization and direction data properties
-    pol_suf = {'TE': '_1', 'TM': '_2'}[pol]
-    ipol = int(pol_suf[1:]) - 1
-    phi = {'Gamma-K': 0.0, 'Gamma-M': 90.0}[direc]
-
-    # Find the relevant sim-numbers and load test data
-    logger.info('Reducing data set for pol={} and direction {}'.
-                format(pol, direc))
-    data = sim_data[sim_data.phi == phi]
-
-    logger.info('Loading sample data')
-    return get_clustering_input_data(data, ipol, treat_complex, preprocess,
-                                     field_type=field_type)
-
-
 def cluster_modes(sim_data, pol='TE', direc='Gamma-K',
                   theta_split=None, treat_complex='abs', preprocess='scale',
                   cluster_type='MiniBatchKMeans',
                   field_type='electric', **cluster_kwargs):
+    """Performs a complete clustering procedure for the field data defined
+    by the given `sim_data`, polarization `pol` and high symmetry direction
+    `direc`.
+
+    The procedure is composed of the following steps.
+      1. Finding the valid simulation numbers from the `sim_data` data frame,
+         according to the given symmetry direction.
+      2. Composing the sample data used to fit the clusterer using the
+         `get_clustering_input_data` function.
+      3. Fitting the clusterer using the `cluster_fit_data` function.
+      4. Calculating the Euclidian distances and Silhouette coefficients
+         for the clustering results.
+
+    This process can moreover be split into a fitting step for angles smaller
+    than `theta_split`, and a prediction step for the remaining angles. That
+    means, in case of `theta_split!=None`, the clustering will only be
+    performed for angles smaller than this value, while the remaining data
+    will only be predicted based on the clusters found that way.
+
+    Parameters
+    ----------
+    sim_data : pandas.DataFrame
+        Simulation parameters and derived results data frame as loaded from the
+        'parameters_and_results.h5' database.
+    pol : {'TE' | 'TM'}
+        Polarization to use.
+    direc : {'Gamma-K' | 'Gamma-M'}
+        High-symmetry direction to use (determined by azimuthal angle phi
+        in the simulations.
+    theta_split : float or None
+        Critical angle theta (in degrees) at which the clustering should be
+        splitted. If `None`, no splitting will be performed, i.e. the complete
+        data set will be used for clustering. Otherwise, only field data for
+        `theta <= theta_split` will be used to fit the clusterer. For the
+        remaining data the labels will only be predicted.
+    treat_complex : None or str (numpy function name or 'concat')
+        If None, complex numbers are preserved. If concat, real and imaginary
+        parts are concatenated using `numpy.hstack`. Other str-values are
+        treated as numpy function names, e.g. `'abs'`, which may raise an
+        Exception if numpy does not have this attribute.
+    cluster_type : str
+        Name of a clustering algorithm defined in `sklearn.cluster` or
+        sklearn.mixture`.
+    preprocess : None or str (function name of the sklearn.preprocessing module)
+        Name of a sklearn.preprocessing function to be used to preprocess
+        the data (e.g. `'scale'`).
+    field_type : {'electric' | 'magnetic'}
+
+    `cluster_kwargs` are automatically passed to the initialization of the
+    given clusterer instance.
+
+    Returns
+    -------
+    model : trained model instance
+        A class instance of `sklearn.cluster` or `sklearn.mixture` with name
+        defined by `cluster_type`, fitted using the given `samples`.
+    sim_numbers : numpy.ndarray
+        List of simulation numbers for which the clustering has been performed.
+    labels : numpy.ndarray
+        The labels that have been determined by the clustering procedure.
+    euclidian_distances : numpy.ndarray
+        Euclidian distances determined using
+        `sklearn.metrics.pairwise.euclidean_distances`.
+    silhouettes : numpy.ndarray
+        Silhouette coefficients determined using
+        `sklearn.metrics.silhouette_samples`.
+
+    """
     logger = logging.getLogger(__name__)
     # Get polarization and direction data properties
     pol_suf = {'TE': '_1', 'TM': '_2'}[pol]
@@ -658,41 +792,42 @@ def cluster_modes(sim_data, pol='TE', direc='Gamma-K',
     return model, sim_numbers, labels, euclidian_distances, silhouettes
 
 
-def predict_modes(model, sim_data, pol, direc, treat_complex='abs',
-                  preprocess='scale', field_type='electric'):
-    logger = logging.getLogger(__name__)
-    # Get polarization and direction data properties
-    pol_suf = {'TE': '_1', 'TM': '_2'}[pol]
-    ipol = int(pol_suf[1:]) - 1
-    phi = {'Gamma-K': 0.0, 'Gamma-M': 90.0}[direc]
-
-    # Find the relevant sim-numbers and load test data
-    logger.info('Reducing data set for pol={} and direction {}'.
-                format(pol, direc))
-    data = sim_data[sim_data.phi == phi]
-
-    logger.info('Loading prediction data')
-    samples_pred = get_clustering_input_data(data, ipol, treat_complex,
-                                             preprocess, field_type=field_type)
-    sim_numbers = data.index.tolist()
-    labels = model.predict(samples_pred)
-    score_pred, silhouettes_pred = get_silhouette(samples_pred, labels)
-    logger.info('Silhouette score predict: {}'.format(score_pred))
-
-    # Euclidian distances from the assigned cluster centers
-    euclidian_distances = []
-    logger.info('Calculating Euclidian distances')
-    for irow, l_i in enumerate(labels):
-        ccen = model.cluster_centers_[l_i].reshape(1, -1)
-        samp = samples_pred[irow].reshape(1, -1)
-        euclidian_distances.append(euclidean_distances(ccen, samp)[0][0])
-
-    return sim_numbers, labels, euclidian_distances, silhouettes_pred
-
-
 def cluster_all_modes(sim_data_, theta_split=None,
                       cluster_type='MiniBatchKMeans', cluster_kwargs_dicts=None,
                       pols=None, direcs=None, field_type='electric'):
+    """Calls `cluster_modes` for all combinations of high-symmetry direction
+    `direcs` and polarizations `pols`, collects the results and integrates
+    them into (a copy of) the `sim_data_` data frame. See the doc-string of
+    `cluster_modes` for detailed explanations of the parameters that can be
+    passed via the `cluster_kwargs_dicts` dictionary.
+
+    Parameters
+    ----------
+    cluster_kwargs_dicts : nested dict
+        Keyword arguments to be passed to the `cluster_modes` function. The
+        first layer of keys must be the directions, and the second layer
+        the polarizations. E.g. `cluster_kwargs_dicts['Gamma-K']['TE']` would
+        hold the arguments that should be passed to `cluster_modes` for
+        Gamma-K direction and TE polarization.
+    pols, direcs : list-like
+        Polarizations and high-symmetry directions to use.
+
+    See `cluster_modes` for remaining parameters.
+
+    Returns
+    -------
+    sim_data : pandas.DataFrame
+        Enriched copy of the `sim_data_` data frame, featureing the
+        classification, the Euclidian distances and the Silhouette
+        coefficients. The column names are self-explanatory (postfixes
+        '_1'/'_2' stand for TE/TM, as also used as a convention in the
+        'parameters_and_results.h5' database.
+    model_data : nested dict
+        Dictionary like `cluster_kwargs_dicts`, but holding the trained
+        model and the simulation numbers in an additional layer with keys
+        `['model', 'sim_nums']`.
+
+    """
     logger = logging.getLogger(__name__)
     # Copy input data
     sim_data = deepcopy(sim_data_)
@@ -831,60 +966,5 @@ def cluster_all_modes(sim_data_, theta_split=None,
     return sim_data, dict(model_data)
 
 
-def classify_with_model(sim_data_, model, pols=None, direcs=None,
-                        treat_complex=None, preprocess='scale',
-                        field_type='electric'):
-    logger = logging.getLogger(__name__)
-    # Copy input data
-    sim_data = deepcopy(sim_data_)
-
-    # Get direction and polarization data
-    ddict = DEFAULT_SIM_DDICT
-    pdict = DEFAULT_SIM_PDICT
-    if pols is None:
-        pols = pdict.keys()
-    if direcs is None:
-        direcs = ddict.keys()
-
-    # Init nested dicts
-    sim_num_data = defaultdict(dict)
-
-    for direc in direcs:
-        for pol in pols:
-            logger.info('Classifying for {} {}'.format(direc, pol))
-            sim_num_data[direc][pol] = {}
-            pol_suf = pdict[pol]
-
-            sim_nums, labels, distances, silhouettes = \
-                predict_modes(model, sim_data, pol, direc,
-                              treat_complex=treat_complex,
-                              preprocess=preprocess, field_type=field_type)
-            sim_num_data[direc][pol]['sim_nums'] = sim_nums
-
-            # Write labels, distances and silhouettes to the data frame
-            logger.info('Updating simulation data set.')
-            _cols = ['Classification' + pol_suf,
-                     'Euclidian_Distances' + pol_suf,
-                     'Silhouettes' + pol_suf]
-            for _col, _cdata in zip(_cols, [labels, distances, silhouettes]):
-                if _col not in sim_data:
-                    sim_data[_col] = np.NaN
-                sim_data.loc[sim_nums, _col] = _cdata
-                logger.info('Finished')
-
-    return sim_data, dict(sim_num_data)
-
-
-def test(every):
-    logger = logging.getLogger(__name__)
-    df = get_results(every, every)
-    lengths, pointlist, domain_ids = get_metadata()
-    data = load_field_data_for_sims_([0, 1, 2, 3], 0, 'magnetic')
-    logger.info(data.shape)
-
-
 if __name__ == '__main__':
-    log_fmt = '%(asctime)s - %(levelname)s - %(message)s'
-    logging.basicConfig(level=logging.DEBUG, format=log_fmt)
-    #set_dummy_mode(True)
-    test(2)
+    pass
