@@ -65,9 +65,9 @@ sys.path.insert(0, "path/to/phc_mode_clustering")
 from src import tools, in_out, visualize as vis
 ```
 
-The **[How to Perform the Clustering]('notebooks/How%20to%20Perform%20the%20Clustering.ipynb')** notebook will introduce you to the module, demonstrate a complete clustering procedure and show some basic plotting. It also demonstrates persistent storage of the clustering results, including the models itself.
+The **[How to Perform the Clustering](notebooks/How%20to%20Perform%20the%20Clustering.ipynb)** notebook will introduce you to the module, demonstrate a complete clustering procedure and show some basic plotting. It also demonstrates persistent storage of the clustering results, including the models itself.
 
-The **[Loading and Plotting of Stored Data]('notebooks/Loading%20and%20Plotting%20of%20Stored%20Data.ipynb')** demonstrates loading of stored clustering data, using a small example data set distributed with this package. It moreover shows some advanced plotting to achieve results similar to those shown in the main publication.
+The **[Loading and Plotting of Stored Data](notebooks/Loading%20and%20Plotting%20of%20Stored%20Data.ipynb)** demonstrates loading of stored clustering data, using a small example data set distributed with this package. It moreover shows some advanced plotting to achieve results similar to those shown in the main publication.
 
 
 ## Funding
