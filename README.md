@@ -1,20 +1,31 @@
 phc_mode_clustering
 ==============================
 
-This is the Python code publication supplement to the manuscript
-  > C. Barth and C. Becker, “Machine learning classification for field distributions of photonic modes”, ArXiv e-prints (2018), arXiv:1803.08290 [physics.optics].
+This is the Python code publication supplement to the manuscript entitled
+  > “Machine learning classification for field distributions of photonic modes”
+
+by
+  > C. Barth¹ and C. Becker¹
+  
+affiliated with
+  > ¹Helmholtz-Zentrum Berlin für Materialien und Energie, Albert-Einstein-Str. 15, 12489 Berlin, Germany.
+
+The manuscript is published as a preprint on ArXiv:
+  > ArXiv e-prints (2018), [arXiv:1803.08290](http://arxiv.org/abs/1803.08290) [physics.optics].
 
 This code is accompanied by (and partly depends on) the data publication
-  > Barth, Carlo; Becker, Christiane (2018): Supplement to: Machine learning classification for field distributions of photonic modes. HZB Data Service. http://doi.org/10.5442/ND000002
+  > Barth, Carlo; Becker, Christiane (2018): *Supplement to: Machine learning classification for field distributions of photonic modes.* HZB Data Service. http://doi.org/10.5442/ND000002
 
-*Note that a script for automatic download and verification of the data is included in this module. See the usage notes below.*
 
-At the time when this material was published, the authors are both affiliated with
-  > Helmholtz-Zentrum Berlin für Materialien und Energie, Albert-Einstein-Str. 15, 12489 Berlin, Germany.
+**Notes**
+  - A script for automatic download and verification of the data is included in this module. See the usage notes below.
+  - The data publication DOI will only be resolvable after the manuscript has been officially published. Until then a fallback URL will be used internally.
 
 ## Installation
 
-This code can only be cloned as is. See [requirements.txt](requirements.txt) for a list of Python modules on which it depends. This is basically the PyData stack, so e.g. users of anaconda may need minimal installations to get started.
+This code can only be cloned as is, either directly from Github or via the version archived by Zenodo (you can find the DOI for the archived version in the final publication).
+
+See [requirements.txt](requirements.txt) for a list of Python modules on which it depends. This is basically the PyData stack, so e.g. users of anaconda may need minimal installations to get started.
 
 ## Usage
 
