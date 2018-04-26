@@ -1,4 +1,4 @@
-phc_mode_clustering
+phc_mode_clustering [![DOI](https://zenodo.org/badge/128033169.svg)](https://zenodo.org/badge/latestdoi/128033169)
 ==============================
 
 This is the Python code publication supplement to the manuscript entitled
