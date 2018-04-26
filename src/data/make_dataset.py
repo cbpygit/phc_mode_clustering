@@ -10,7 +10,9 @@ from urllib import urlretrieve
 import click
 
 # Download path of the raw data
-DOI = 'https://dx.doi.org/10.5442/ND000002'
+DOI =  'https://dx.doi.org/10.5442/ND000002'
+URL_FALLBACK = 'https://icat.helmholtz-berlin.de/pub/e862925f-2aa8-4a63-89a7' \
+               '-0461da02fca5'
 
 # Full and reduced checksums for file verification
 CHECKSUMS_FULL = {
@@ -58,7 +60,7 @@ def sha256_checksum(filename, block_size=65536, max_blocks=None):
                 i_block += 1
                 if i_block >= max_blocks:
                     break
-    
+
     # Include file size into the reduced hash
     if max_blocks is not None:
         sha256.update(str(os.path.getsize(filename)))
@@ -136,7 +138,10 @@ def download_file_to(url, filepath):
 def download_data():
     """Downloads the data from the hard-coded sources."""
     logger = logging.getLogger(__name__)
-    url_base = resolve_doi(DOI)
+    try:
+        url_base = resolve_doi(DOI)
+    except IndexError:
+        url_base = URL_FALLBACK
     success = True
     for fn in DATA_DOWNLOAD_FILENAMES:
         url = url_base + '/' + fn
