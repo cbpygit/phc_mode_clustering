@@ -151,8 +151,10 @@ def download_data():
                         format(url, target) + ' already exists')
         else:
             logger.info('\tpreparing download for file {}'.format(url))
-            if int(requests.get(url).status_code) == 404:
-                logger.warn('\tunable to download: response was error 404!')
+            status_code = int(requests.head(url).status_code)
+            if status_code != 200:
+                logger.warn('\tunable to download: integer code of responded '
+                            'HTTP Status: {}'.format(status_code))
                 success = False
             else:
                 logger.info('\tdownloading to {}'.format(target))
