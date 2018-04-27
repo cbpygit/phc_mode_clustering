@@ -19,25 +19,25 @@ CHECKSUMS_FULL = {
     'parameters_and_results.h5':
         '9d5bd9642128641dfe63644b514219261bf4570ffccbbec3c68ec517a0040b63',
     'field_data_E_TE.h5':
-        'fd3664d82d86e7612837730460372e74432a2d043bf7b3bd105f6a6abd122dfa',
+        'e043aa0e773690f258a26dd5ed8d9bd89b0e67780d1a4e1531bd971113750509',
     'field_data_H_TE.h5':
         '4598f20a3356635cd926f2b0f4cb6e6dbef6d63fd672bed8cf1d76ef252ededd',
     'field_data_E_TM.h5':
         '6604419a9b90e4945e9b2b399a72c93703d9496b36282e1e746934d0120ab659',
     'field_data_H_TM.h5':
-        'b23d2d43fc4432013b1ade848dc67bbfec8291895803d1b5a7397b27e3e9e830'}
+        '1cba60b15b878c679a56dadf6441fb8ecec2a193f978de5fc5d6b8e3b7351b7c'}
 
 CHECKSUMS_REDUCED = {
     'parameters_and_results.h5':
         'f678e9efbe8dccef11afac2e928e1c9b2f07ab85c45539ce4fffbcbb8c1497c4',
     'field_data_E_TE.h5':
-        '4c567e2e911716cb3f353296e571c08e449a3d65bcbaa4e9ac174c6f9aa3fa05',
+        '28008d93dafa15e3a805f19e8930a97bcf8696cb0c03dea1a5aab3aee45ffe73',
     'field_data_H_TE.h5':
         '0cb3e0330b429095ea944cc0b3cef21069c9014d6c30cf65ce9898864d9370ad',
     'field_data_E_TM.h5':
         '4abb219d29cd6878d5cc5a1ac9f0349c16e075954a4bf1f53ebe90429b534102',
     'field_data_H_TM.h5':
-        '0ba02ab71d5db1d8d253ba45aa30d1e61ed405782f2aec52749d52f00b8248c9'}
+        'f98a6eaa31671d43894c9ac4029bfc250366c059cbc0daca7d441121e69e8810'}
 
 # Additional constants
 DATA_DOWNLOAD_FILENAMES = CHECKSUMS_FULL.keys()
