@@ -87,8 +87,8 @@ The abstract in the [data publication](http://doi.org/10.5442/ND000002) gives a 
 
 Key | Description
 :---| -----------
-`AccumulatedCPUTime` | Accumulated CPU time
-`AccumulatedTotalTime` | Accumulated total time
+`AccumulatedCPUTime` | Accumulated CPU time, including post processes
+`AccumulatedTotalTime` | Accumulated total (wall) time, including post processes
 `CpuPerUnknown` | CPU time per unknown fraction
 `CpuTime...` | Various CPU time metrics of the solver
 `E_1/2` | Integrated field energy enhancement in the superspace volume V_sup of the computational domain (including the hole) for TE/TM polarization
@@ -97,8 +97,8 @@ Key | Description
 `Level` | Refinement level
 `SystemMemory_GB` | Consumed memory during the simulation in GB
 `TotalMemory_GB` | Total memory of the solve
-`TotalTime...` | Various time metrics of the solver
-`Unknowns` | Number of unknowns in the FEM simulation
+`TotalTime...` | Various wall time metrics of the solver
+`Unknowns` | Number of unknowns (degrees of freedom) in the FEM simulation
 `a_1/2_by_p_in` | Absorption in the superspace volume V_sup for TE/TM polarization, normalized to the incident power
 `conservation1/2` | Conservation metric Reflectance + Transmittance + Absorption  in the superspace volume V_sup for TE/TM polarization, used as a convergence/validity estimator
 `d` | Center diameter of the holes
