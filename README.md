@@ -81,6 +81,47 @@ The **[How to Perform the Clustering](notebooks/How%20to%20Perform%20the%20Clust
 The **[Loading and Plotting of Stored Data](notebooks/Loading%20and%20Plotting%20of%20Stored%20Data.ipynb)** demonstrates loading of stored clustering data, using a small example data set distributed with this package. It moreover shows some advanced plotting to achieve results similar to those shown in the main publication.
 
 
+## Database details
+
+The abstract in the [data publication](http://doi.org/10.5442/ND000002) gives a general description of the database structure. In addition, the following table gives descriptions for the columns in the `parameters_and_results.h5/data` table.
+
+Key | Description
+:---| -----------
+`AccumulatedCPUTime` | Accumulated CPU time
+`AccumulatedTotalTime` | Accumulated total time
+`CpuPerUnknown` | CPU time per unknown fraction
+`CpuTime...` | Various CPU time metrics of the solver
+`E_1/2` | Integrated field energy enhancement in the superspace volume V_sup of the computational domain (including the hole) for TE/TM polarization
+`E_norm` | Energy of the incident plane wave in the superspace volume V_sup, used as a normalization constant in the calculation of E_+
+`FEDegree{N}_Percentage` | Percentage of patches with a finite element degree (i.e. polynomial degree of the ansatz functions) of N, for N in [0...10]
+`Level` | Refinement level
+`SystemMemory_GB` | Consumed memory during the simulation in GB
+`TotalMemory_GB` | Total memory of the solve
+`TotalTime...` | Various time metrics of the solver
+`Unknowns` | Number of unknowns in the FEM simulation
+`a_1/2_by_p_in` | Absorption in the superspace volume V_sup for TE/TM polarization, normalized to the incident power
+`conservation1/2` | Conservation metric Reflectance + Transmittance + Absorption  in the superspace volume V_sup for TE/TM polarization, used as a convergence/validity estimator
+`d` | Center diameter of the holes
+`e_11...e_24` | Field energy for a specific polarization and domain (format: `e_{polarization}{domain}`.
+`fem_degree_max` | The maximum FEM degree used in the adaptive approach
+`h` | Height, i.e. extent in *z*-direction, of the slab
+`h_sub` | Height, i.e. extent in *z*-direction of the substrate material
+`h_sup` | Height, i.e. extent in *z*-direction of the superstrate material
+`mat_phc_k...mat_sup_n` | Refractive index (`n` = real part, `k` = imaginary part) for the three domain (subspace, PhC, superspace)
+`max_sl_circle` | Maximum side length of the circle in the non-extruded (2D) layout
+`max_sl_polygon` | Maximum side length of the polygon in the non-extruded (2D) layout
+`max_sl_z_slab` | Maximum side length in *z*-direction for the slab
+`max_sl_z_sub` | Maximum side length in *z*-direction for the subspace
+`max_sl_z_sup` | Maximum side length in *z*-direction for the superspace
+`p` | Pitch, i.e. lattice constant of the hexagonal lattice
+`phi` | Polar angle of the direction of incident light
+`precision_field_energy` | `Precision` parameter in the `Scattering->Accuracy` section, controlling the numerical accuracy of the near field
+`r_1/2` | Reflectance for TE/TM polarization
+`t_1/2` | Transmittance for TE/TM polarization
+`theta` | Azimuthal angle of the direction of incident light
+`vacuum_wavelength` | Vacuum wavelength of the incident light in meter
+
+
 ## Funding
 
 The *German Federal Ministry of Education and Research* is acknowledged for
